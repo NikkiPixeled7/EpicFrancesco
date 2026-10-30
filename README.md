@@ -1,3 +1,3 @@
 # GSP ✌️😜
 
-- pip install peerjs
+- pip install peerjs-py aiortc
