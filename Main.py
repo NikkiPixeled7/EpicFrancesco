@@ -10,6 +10,8 @@ SCREEN_HEIGHT = 600
 FPS = 60
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+screen.fill((135, 206, 235))
+pygame.display.flip()
 pygame.display.set_caption("Character and Customizable Map")
 clock = pygame.time.Clock()
 font = pygame.font.Font(None, 28)
@@ -121,6 +123,16 @@ selected_platform = None
 platform_width = 150
 platform_height = 20
 
+# ---------------- MULTIPLAYER ----------------
+
+network = NetworkClient("ws://127.0.0.1:8765")
+
+connected = network.connect()
+
+if not connected:
+    pygame.quit()
+    exit()
+
 running = True
 
 while running:
@@ -128,16 +140,6 @@ while running:
 
     mouse_x, mouse_y = pygame.mouse.get_pos()
     world_mouse_x = mouse_x + camera_x
-
-    # ------------- MULTIPLAYER ----------------
-
-    network = NetworkClient("ws://127.0.0.1:8765")
-
-    connected = network.connect()
-
-    if not connected:
-        pygame.quit()
-        exit()
 
     # -------------- EVENTS --------------
 
@@ -268,33 +270,33 @@ while running:
 
     player.draw(screen, camera_x)
 
-# ------------- OTHER PLAYERS -------------
+    # ------------- OTHER PLAYERS -------------
 
-my_id, other_players = network.get_players()
+    my_id, other_players = network.get_players()
 
-for player_id, data in other_players.items():
+    for player_id, data in other_players.items():
 
-    if player_id == my_id:
-        continue
+        if player_id == my_id:
+            continue
 
-    other_x = data["x"]
-    other_y = data["y"]
+        other_x = data["x"]
+        other_y = data["y"]
 
-    other_color = CHARACTERS.get(
-        data["color"],
-        BLUE
-    )
-
-    pygame.draw.rect(
-        screen,
-        other_color,
-        (
-            other_x - camera_x,
-            other_y,
-            30,
-            40
+        other_color = CHARACTERS.get(
+            data["color"],
+            BLUE
         )
-    )
+
+        pygame.draw.rect(
+            screen,
+            other_color,
+            (
+                other_x - camera_x,
+                other_y,
+                30,
+                40
+            )
+        )
 
     if editing:
         instructions = [
@@ -317,4 +319,5 @@ for player_id, data in other_players.items():
 
     pygame.display.flip()
 
+network.close()
 pygame.quit()
