@@ -46,7 +46,6 @@ class NetworkClient:
     def receive_data(self):
 
         try:
-
             while True:
 
                 message = self.websocket.recv()
@@ -55,19 +54,15 @@ class NetworkClient:
                 with self.lock:
 
                     if data["type"] == "welcome":
-
                         self.player_id = data["id"]
-
                         print("Your player ID:", self.player_id)
 
                     elif data["type"] == "state":
-
                         self.players = data["players"]
 
         except Exception as error:
-
             print("Connection lost:", error)
-
+        
     def send_data_thread(self):
 
         while True:
