@@ -213,7 +213,7 @@ while running:
         player.handle_input(keys)
         player.update(platforms)
 
-        network.send_data(
+        network.send_position(
             player.rect.x,
             player.rect.y,
             selected_character
@@ -268,32 +268,33 @@ while running:
 
     player.draw(screen, camera_x)
 
-    # ------------ OTHER PLAYERS -----------
+# ------------- OTHER PLAYERS -------------
 
-    other_players = network.get_players()
+my_id, other_players = network.get_players()
 
-    for player_id, data in other_players.items():
+for player_id, data in other_players.items():
 
-        other_x = data["x"]
-        other_y = data["y"]
+    if player_id == my_id:
+        continue
 
-        other_color = CHARACTERS.get(
-            data["color"],
-            BLUE
+    other_x = data["x"]
+    other_y = data["y"]
+
+    other_color = CHARACTERS.get(
+        data["color"],
+        BLUE
+    )
+
+    pygame.draw.rect(
+        screen,
+        other_color,
+        (
+            other_x - camera_x,
+            other_y,
+            30,
+            40
         )
-
-        # other player draw section
-        pygame.draw.rect(
-            screen,
-            other_color,
-            (
-                other_x - camera_x,
-                other_y,
-                30,
-                40
-            )
-        )
-
+    )
 
     if editing:
         instructions = [
