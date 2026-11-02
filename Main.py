@@ -1,4 +1,5 @@
 import pygame
+from network import NetworkClient
 
 pygame.init()
 
@@ -23,7 +24,7 @@ MOVE_SPEED = 5
 GRAVITY = 0.7
 JUMP_STRENGTH = -13
 
-# -------------------- CHARACTER OPTIONS --------------------
+# -------------- CHARACTER OPTIONS -----------------
 
 CHARACTERS = {
     "Blue": BLUE,
@@ -97,7 +98,7 @@ class Player:
         )
 
 
-# -------------------- MAP --------------------
+# ----------------- MAP ----------------
 
 platforms = [
     pygame.Rect(0, 540, 500, 60),
@@ -109,7 +110,7 @@ platforms = [
 
 MAP_WIDTH = 1600
 
-# -------------------- GAME SETUP --------------------
+# ---------------- GAME SETUP -------------
 
 player = Player(60, 450, CHARACTERS[selected_character])
 camera_x = 0
@@ -128,7 +129,17 @@ while running:
     mouse_x, mouse_y = pygame.mouse.get_pos()
     world_mouse_x = mouse_x + camera_x
 
-    # -------------------- EVENTS --------------------
+    # ------------- MULTIPLAYER ----------------
+
+    network = NetworkClient("ws://127.0.0.1:8765")
+
+    connected = network.connect()
+
+    if not connected:
+        pygame.quit()
+        exit()
+
+    # -------------- EVENTS --------------
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -193,13 +204,33 @@ while running:
             if event.button == 1:
                 selected_platform = None
 
-    # -------------------- UPDATE --------------------
+    # ------------- UPDATE ------------
 
+    
     if not editing:
         keys = pygame.key.get_pressed()
 
         player.handle_input(keys)
         player.update(platforms)
+
+        network.send_data(
+            player.rect.x,
+            player.rect.y,
+            selected_character
+        )
+
+        if player.rect.top > SCREEN_HEIGHT + 200:
+            player.rect.topleft = (60, 450)
+            player.vel_x = 0
+            player.vel_y = 0
+
+        camera_x = player.rect.centerx - SCREEN_WIDTH // 2
+
+        camera_x = max(
+            0,
+            min(camera_x, MAP_WIDTH - SCREEN_WIDTH),
+        )
+
 
         if player.rect.top > SCREEN_HEIGHT + 200:
             player.rect.topleft = (60, 450)
@@ -221,7 +252,7 @@ while running:
             selected_platform.x = world_mouse_x - drag_offset_x
             selected_platform.y = mouse_y - drag_offset_y
 
-    # -------------------- DRAW --------------------
+    # -------------- DRAW ---------------
 
     screen.fill((135, 206, 235))
 
@@ -236,6 +267,33 @@ while running:
         pygame.draw.rect(screen, BROWN, screen_rect)
 
     player.draw(screen, camera_x)
+
+    # ------------ OTHER PLAYERS -----------
+
+    other_players = network.get_players()
+
+    for player_id, data in other_players.items():
+
+        other_x = data["x"]
+        other_y = data["y"]
+
+        other_color = CHARACTERS.get(
+            data["color"],
+            BLUE
+        )
+
+        # other player draw section
+        pygame.draw.rect(
+            screen,
+            other_color,
+            (
+                other_x - camera_x,
+                other_y,
+                30,
+                40
+            )
+        )
+
 
     if editing:
         instructions = [
