@@ -1,0 +1,1105 @@
+import pygame, random, math
+from enemy_data import slime
+
+pygame.init()
+pygame.font.init()
+pygame.mixer.init()
+
+coin_font = pygame.font.Font(None, 28)
+
+coin_count = 0
+enemy_kill_count = 0
+coins_generated = False
+
+# Shared Colors & Settings
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREEN = (100, 200, 100)
+BROWN = (139, 90, 43)
+BLUE = (135, 206, 235)
+RED = (200, 50, 50)
+DIRT_COLOR = (1, 2, 5)
+ranonce = 0
+
+required_coins = 40
+required_fights = 5
+
+GRAVITY = 0.8
+JUMP_STRENGTH = -12
+MOVE_SPEED = 5
+
+# Sounds (Your Version)
+jump = pygame.mixer.Sound('jump.wav')
+landing = pygame.mixer.Sound('landing.wav')
+coin_get = pygame.mixer.Sound("coin_get.wav")
+jump.set_volume(0.8)
+landing.set_volume(0.8)
+coin_get.set_volume(0.8)
+defeated_enemies = []
+
+p1 = 45
+p2 = 35
+f1 = 22
+f2 = 26
+# Load Image Assets
+bg_img = pygame.image.load("backgroundImage.png")
+bg_img = pygame.transform.scale(bg_img, (2000, 600))
+grass_img = pygame.image.load("GroundTop2.png")
+grass_img = pygame.transform.scale(grass_img, (111, 120))
+spawn_img = pygame.image.load("SpawnPointBed.png")
+spawn_img = pygame.transform.scale(spawn_img, (32, 32))
+fence1_img = pygame.image.load("Fence2.png")
+fence1_img = pygame.transform.scale(fence1_img, (32, 32))
+fencef_img = pygame.image.load("FenceFloor.png")
+fencef_img = pygame.transform.scale(fencef_img, (32, 16))
+tree1_img = pygame.image.load("Tree1.png")
+tree1_img = pygame.transform.scale(tree1_img, (93, 115))
+tree2_img = pygame.image.load("Tree2.png")
+tree2_img = pygame.transform.scale(tree2_img, (99, 118))
+tree3_img = pygame.image.load("Tree3.png")
+tree3_img = pygame.transform.scale(tree3_img, (115, 100))
+bush1img = pygame.image.load("Bush1.png")
+bush1img = pygame.transform.scale(bush1img, (p1, p2))
+bush2img = pygame.image.load("Bush2.png")
+bush2img = pygame.transform.scale(bush2img, (p1, p2))
+bush3img = pygame.image.load("Bush3.png")
+bush3img = pygame.transform.scale(bush3img, (p1, p2))
+Ground3_img = pygame.image.load("Ground3.png")
+Ground3_img = pygame.transform.scale(Ground3_img, (111, 65))
+grassoverlay_img = pygame.image.load("GrassOverlay.png")
+grassoverlay_img = pygame.transform.scale(grassoverlay_img, (45, 20))
+waterimg = pygame.image.load("TiledWater.png")
+waterimg = pygame.transform.scale(waterimg, (32, 65))
+flower1img = pygame.image.load("Flower1.png")
+flower1img = pygame.transform.scale(flower1img, (f1, f2))
+flower2img = pygame.image.load("Flower2.png")
+flower2img = pygame.transform.scale(flower2img, (f1, f2))
+flower3img = pygame.image.load("Flower3.png")
+flower3img = pygame.transform.scale(flower3img, (f1, f2))
+flower4img = pygame.image.load("Flower4.png")
+flower4img = pygame.transform.scale(flower4img, (f1, f2))
+flower5img = pygame.image.load("Flower5.png")
+flower5img = pygame.transform.scale(flower5img, (f1, f2))
+coin_img = pygame.image.load("GoldCoin.png")
+coin_img = pygame.transform.scale(coin_img, (18, 20))
+rock_pile = pygame.image.load("RockPile.png")
+rock_pile = pygame.transform.scale(rock_pile, (150, 20))
+door_img = pygame.image.load('boss_door.png')
+door_img = pygame.transform.scale(door_img, (50, 50))
+
+cloud_images = [
+    pygame.image.load("Cloud1.png"),
+    pygame.image.load("Cloud2.png"),
+    pygame.image.load("Cloud3.png"),
+    pygame.image.load("Cloud4.png"),
+    pygame.image.load("Cloud5.png"),
+    pygame.image.load("Cloud6.png"),
+    pygame.image.load("Cloud7.png"),
+    pygame.image.load("Cloud8.png"),
+
+]
+
+bush_images = [
+    bush1img,
+    bush2img,
+    bush3img,
+]
+
+flower_images = [
+    flower1img,
+    flower2img,
+    flower3img,
+    flower4img,
+    flower5img,
+]
+
+coins = [
+    # Manual coins (always spawn here)
+    {"rect": pygame.Rect(1797, 70, 20, 20), "img": coin_img, "base_y": 70, "offset": 0},
+    {"rect": pygame.Rect(1834, 102, 20, 20), "img": coin_img, "base_y": 102, "offset": 1},
+    {"rect": pygame.Rect(1853, 159, 20, 20), "img": coin_img, "base_y": 159, "offset": 2},
+    {"rect": pygame.Rect(1688, 110, 20, 20), "img": coin_img, "base_y": 110, "offset": 3},
+    {"rect": pygame.Rect(1719, 77, 20, 20), "img": coin_img, "base_y": 77, "offset": 4},
+    {"rect": pygame.Rect(1765, 59, 20, 20), "img": coin_img, "base_y": 59, "offset": 5},
+    {"rect": pygame.Rect(1865, 206, 20, 20), "img": coin_img, "base_y": 206, "offset": 6},
+
+    {"rect": pygame.Rect(473, 405, 20, 20), "img": coin_img, "base_y": 405, "offset": 0},
+    {"rect": pygame.Rect(508, 411, 20, 20), "img": coin_img, "base_y": 411, "offset": 0},
+    {"rect": pygame.Rect(545, 417, 20, 20), "img": coin_img, "base_y": 417, "offset": 0},
+    {"rect": pygame.Rect(591, 412, 20, 20), "img": coin_img, "base_y": 412, "offset": 0},
+    {"rect": pygame.Rect(625, 414, 20, 20), "img": coin_img, "base_y": 414, "offset": 0},
+    {"rect": pygame.Rect(659, 400, 20, 20), "img": coin_img, "base_y": 400, "offset": 0},
+
+    {"rect": pygame.Rect(941, 131, 20, 20), "img": coin_img, "base_y": 131, "offset": 0},
+    {"rect": pygame.Rect(1856, 384, 20, 20), "img": coin_img, "base_y": 384, "offset": 0},
+    {"rect": pygame.Rect(1912, 323, 20, 20), "img": coin_img, "base_y": 323, "offset": 0},
+    {"rect": pygame.Rect(872, 129, 20, 20), "img": coin_img, "base_y": 129, "offset": 0},
+]
+
+bush = []
+
+clouds = []
+
+bg_tile_original = pygame.image.load("backgroundTile.png")
+TILE_SCALE = 0.1
+tile_w = int(bg_tile_original.get_width() * TILE_SCALE)
+tile_h = int(bg_tile_original.get_height() * TILE_SCALE)
+bg_tile_img = pygame.transform.scale(bg_tile_original, (tile_w, tile_h))
+
+
+def draw_platform(screen, image, rect, camera_x=0):
+
+    # ✅ FIX: unwrap tuple if needed
+    if isinstance(rect, tuple):
+        rect = rect[0]
+
+    platform_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+
+    t_w, t_h = image.get_width(), image.get_height()
+
+    for x in range(0, rect.width, t_w):
+        draw_w = min(t_w, rect.width - x)
+        tile = image.subsurface((0, 0, draw_w, t_h))
+        platform_surf.blit(tile, (x, 0))
+
+    if rect.height > t_h:
+        pygame.draw.rect(platform_surf, DIRT_COLOR,
+                         (0, t_h, rect.width, rect.height - t_h))
+
+    mask = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+    pygame.draw.rect(mask, (255, 255, 255),
+                     (0, 0, rect.width, rect.height),
+                     border_radius=6)
+
+    platform_surf.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+    screen.blit(platform_surf, (rect.x - camera_x, rect.y))
+
+def generate_coins_on_platforms(platforms, amount):
+    coins = []
+    valid_platforms = [p[0] if isinstance(p, tuple) else p for p in platforms]
+
+    attempts = 0
+
+    while len(coins) < amount and attempts < amount * 20:
+        attempts += 1
+
+        plat = random.choice(valid_platforms)
+
+        x = random.randint(plat.x, plat.x + plat.width - 20)
+        y = plat.y - 30
+
+        new_pos = pygame.Rect(x, y, 20, 20)
+
+        # check spacing
+        too_close = False
+        for c in coins:
+            if abs(c["rect"].x - x) < 55:
+                too_close = True
+                break
+
+        if too_close:
+            continue
+
+        coins.append({
+            "rect": new_pos,
+            "img": coin_img,
+            "base_y": y,
+            "offset": random.uniform(0, 6.28)
+        })
+
+    return coins
+
+class Player:
+    def __init__(self, x, y, chosenCharacter=None):
+        self.rect = pygame.Rect(x, y, 22, 30)
+        self.vel_x = self.vel_y = 0
+        self.on_ground = False
+        self.chosenCharacter = chosenCharacter or []
+        self.frame_index = 0
+        self.frame_timer = 0
+        self.facing_right = True
+        self.air_timer = 0
+        self.spawn_x = 15
+        self.spawn_y = 250
+
+    def handle_input(self, keys):
+        self.vel_x = 0
+        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            self.vel_x, self.facing_right = -MOVE_SPEED, False
+        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            self.vel_x, self.facing_right = MOVE_SPEED, True
+        if (keys[pygame.K_SPACE] or keys[pygame.K_w] or keys[pygame.K_UP]):
+            if self.on_ground:
+                self.vel_y = JUMP_STRENGTH
+                jump.play()
+                self.on_ground = False
+
+    def apply_gravity(self):
+        self.vel_y = min(15, self.vel_y + GRAVITY)
+
+    def move_and_collide(self, platforms, fenceHBox, underground):
+        self.rect.x += self.vel_x
+
+        # horizontal collision (platforms)
+        for p in platforms:
+            rect = p[0] if isinstance(p, tuple) else p
+            if self.rect.colliderect(rect):
+                if self.vel_x > 0:
+                    self.rect.right = rect.left
+                elif self.vel_x < 0:
+                    self.rect.left = rect.right
+
+        # horizontal collision (fences)
+        for fh in fenceHBox:
+            rect = fh[0] if isinstance(fh, tuple) else fh
+            if self.rect.colliderect(rect):
+                if self.vel_x > 0:
+                    self.rect.right = rect.left
+                elif self.vel_x < 0:
+                    self.rect.left = rect.right
+
+        was_in_air = not self.on_ground
+        self.rect.y += self.vel_y
+        self.on_ground = False
+
+        # vertical collision (platforms)
+        for p in platforms:
+            rect = p[0] if isinstance(p, tuple) else p
+
+            if self.rect.colliderect(rect):
+                if self.vel_y > 0:
+                    self.rect.bottom = rect.top
+                    self.vel_y = 0
+                    self.on_ground = True
+                elif self.vel_y < 0:
+                    self.rect.top = rect.bottom
+                    self.vel_y = 0
+
+                    if was_in_air:
+                        landing.play()
+                        was_in_air = False
+
+        # vertical collision (fences)
+        for fh in fenceHBox:
+            rect = fh[0] if isinstance(fh, tuple) else fh
+
+            if self.rect.colliderect(rect):
+                if self.vel_y > 0:
+                    self.rect.bottom = rect.top
+                    self.vel_y = 0
+                    self.on_ground = True
+                elif self.vel_y < 0:
+                    self.rect.top = rect.bottom
+                    self.vel_y = 0
+
+                    if was_in_air:
+                        landing.play()
+                        was_in_air = False
+
+        # vertical collision (underground design)
+        for u in underground:
+            rect = u[0] if isinstance(u, tuple) else u
+
+            if self.rect.colliderect(rect):
+                if self.vel_y > 0:
+                    self.rect.bottom = rect.top
+                    self.vel_y = 0
+                    self.on_ground = True
+                elif self.vel_y < 0:
+                    self.rect.top = rect.bottom
+                    self.vel_y = 0
+
+                    if was_in_air:
+                        landing.play()
+                        was_in_air = False
+
+        self.air_timer = 0 if self.on_ground else self.air_timer + 1
+
+    def update_animation(self, dt):
+        if not self.chosenCharacter: return
+        if self.air_timer > 1:
+            self.frame_index = 3
+        elif self.vel_x == 0:
+            self.frame_index = 2
+        else:
+            self.frame_timer += dt
+            if self.frame_timer >= 0.1:
+                self.frame_timer, self.frame_index = 0, (self.frame_index + 1) % 2
+
+    def draw(self, screen, camera_x):
+        if self.chosenCharacter:
+            frame = self.chosenCharacter[self.frame_index]
+            if not self.facing_right: frame = pygame.transform.flip(frame, True, False)
+            screen.blit(frame, (self.rect.x - camera_x, self.rect.y))
+
+
+class Enemy:
+    def __init__(self, x, y, patrol_range, enemy_data, enemy_id, frames):
+        self.rect = pygame.Rect(x, y, 22, 30)
+        self.start_x, self.range = x, patrol_range
+        self.dir, self.speed = 1, 1
+        self.enemy_data, self.enemy_id = enemy_data, enemy_id
+        self.frames, self.frame_index, self.frame_timer = frames, 0, 0
+
+    def update(self, dt):
+        self.rect.x += self.speed * self.dir
+        if self.rect.x > self.start_x + self.range or self.rect.x < self.start_x:
+            self.dir *= -1
+        self.frame_timer += dt
+        if self.frame_timer >= 0.25:
+            self.frame_timer, self.frame_index = 0, (self.frame_index + 1) % len(self.frames)
+
+    def draw(self, screen, camera_x):
+        frame = self.frames[self.frame_index]
+        if self.dir < 0: frame = pygame.transform.flip(frame, True, False)
+        screen.blit(frame, (self.rect.x - camera_x, self.rect.y))
+
+def respawn(self):
+    self.rect.x = self.spawn_x
+    self.rect.y = self.spawn_y
+    self.vel_x = 0
+    self.vel_y = 0
+    self.on_ground = False
+
+
+def update_and_draw_clouds(screen, dt):
+    global clouds
+
+    # create timer once
+    if not hasattr(update_and_draw_clouds, "spawn_timer"):
+        update_and_draw_clouds.spawn_timer = 0
+
+    # count time
+    update_and_draw_clouds.spawn_timer += dt
+
+    # every few seconds spawn a new random cloud
+    if update_and_draw_clouds.spawn_timer >= random.uniform(2, 5):
+        update_and_draw_clouds.spawn_timer = 0
+
+        img = random.choice(cloud_images)
+
+        new_cloud = {
+            "image": img,
+            "x": -img.get_width(),  # start off-screen left
+            "y": random.randint(20, 120),  # random height
+            "speed": random.randint(20, 50)  # random slow speed
+        }
+
+        clouds.append(new_cloud)
+
+    # move + draw clouds
+    for cloud in clouds[:]:
+        cloud["x"] += cloud["speed"] * dt
+
+        screen.blit(cloud["image"], (cloud["x"], cloud["y"]))
+
+        # remove when fully off screen
+        if cloud["x"] > screen.get_width():
+            clouds.remove(cloud)
+
+def platformer_loop(screen, clock, show_hitboxes, p_x, p_y, defeated_enemies, level):
+    SCREEN_WIDTH, SCREEN_HEIGHT = screen.get_width(), screen.get_height()
+    ui_font = pygame.font.Font(None, 22)
+    dev_mode, show_controls = False, True
+    global coins, coin_count, coins_generated, enemy_kill_count
+
+    # Assets
+    SCALE = 2
+    alienSkin = [
+        pygame.transform.scale(pygame.image.load(f"AlienSkin{i}.png").convert_alpha(), (11 * SCALE, 15 * SCALE)) for i
+        in range(1, 4)]
+    alienSkin.append(
+        pygame.transform.scale(pygame.image.load("AlienSkinJump.png").convert_alpha(), (11 * SCALE, 15 * SCALE)))
+    enemy_frames = [pygame.transform.scale(pygame.image.load(f"RedEnemy{i}.png").convert_alpha(), (22, 30)) for i in
+                    range(1, 5)]
+
+    player = Player(p_x, p_y, alienSkin)
+
+    # bounds
+    if player.rect.left < 0:
+        player.rect.left = 0
+
+
+    if player.rect.top > SCREEN_HEIGHT:
+        respawn(player)
+
+    if level == 0:
+        background_rects = [
+            pygame.Rect(866, 168, 107, 58), pygame.Rect(873, 225, 98, 13), pygame.Rect(202, 281, 60, 111),
+            pygame.Rect(257, 290, 27, 32),
+            pygame.Rect(252, 313, 18, 39), pygame.Rect(262, 344, 18, 20), pygame.Rect(258, 358, 34, 25),
+            pygame.Rect(176, 271, 30, 32),
+            pygame.Rect(185, 300, 25, 24), pygame.Rect(194, 319, 16, 24), pygame.Rect(183, 355, 29, 28),
+            pygame.Rect(199, 340, 12, 26),
+            pygame.Rect(193, 346, 15, 21), pygame.Rect(522, 245, 115, 44), pygame.Rect(537, 287, 98, 28),
+            pygame.Rect(563, 313, 71, 48),
+            pygame.Rect(548, 305, 26, 26), pygame.Rect(529, 279, 16, 20), pygame.Rect(548, 342, 23, 19),
+            pygame.Rect(626, 264, 23, 26),
+            pygame.Rect(613, 282, 27, 32), pygame.Rect(618, 310, 28, 26), pygame.Rect(629, 329, 31, 22),
+            pygame.Rect(556, 323, 10, 25),
+            pygame.Rect(872, 216, 10, 15),
+
+            pygame.Rect(1055, 273, 86, 73),
+            pygame.Rect(1046, 278, 21, 39),
+            pygame.Rect(1021, 295, 42, 23),
+            pygame.Rect(1034, 310, 29, 26),
+            pygame.Rect(1051, 326, 31, 41),
+            pygame.Rect(1041, 363, 47, 31),
+            pygame.Rect(1010, 385, 104, 59),
+            pygame.Rect(1077, 324, 77, 140),
+            pygame.Rect(1120, 291, 34, 24),
+            pygame.Rect(1142, 395, 42, 51),
+            pygame.Rect(1169, 416, 41, 28),
+            pygame.Rect(1141, 383, 23, 25),
+            pygame.Rect(1023, 376, 32, 16),
+            pygame.Rect(1036, 276, 28, 29),
+            pygame.Rect(1047, 325, 12, 23),
+            pygame.Rect(1595, 389, 24, 33),
+            pygame.Rect(1645, 395, 49, 24),
+            pygame.Rect(1658, 379, 32, 28),
+            pygame.Rect(1669, 360, 13, 27),
+            pygame.Rect(1855, 312, 51, 113),
+            pygame.Rect(1892, 390, 37, 36),
+            pygame.Rect(1896, 306, 16, 25),
+            pygame.Rect(1823, 383, 42, 46),
+            pygame.Rect(1838, 360, 26, 27),
+            pygame.Rect(1847, 346, 19, 25),
+            pygame.Rect(1852, 305, 9, 18),
+            pygame.Rect(1894, 377, 21, 25),
+            pygame.Rect(1922, 404, 28, 19),
+        ]
+
+        underground = [
+            pygame.Rect(455 - 18, 438, 236 + 30, 181),
+            pygame.Rect(741 - 7, 438, 70 + 15, 239),
+            pygame.Rect(446, 416, 34, 41),
+            pygame.Rect(472, 426, 33, 34),
+            pygame.Rect(646, 436, 52, 27),
+            pygame.Rect(668, 418+9, 38, 25),
+            pygame.Rect(441, 401, 24, 23),
+            pygame.Rect(682, 405+7, 24, 25),
+            pygame.Rect(730, 424, 28, 25),
+            pygame.Rect(785, 430, 44, 20),
+            pygame.Rect(799, 410, 33, 26),
+            pygame.Rect(1835, 405, 112, 205)
+        ]
+        platforms = [
+            (pygame.Rect(0, 308, 135, 300), {}),
+            (pygame.Rect(135, 345, 53, 260), {}),
+            (pygame.Rect(187, 375, 269, 230), {}),
+            (pygame.Rect(544 - 5, 348, 120, 32), {}),
+            (pygame.Rect(689, 364, 53, 240), {}),
+            (pygame.Rect(171, 258, 45, 17), {}),
+            (pygame.Rect(200, 268, 86, 28), {}),
+            (pygame.Rect(515, 214, 103, 41), {}),
+            (pygame.Rect(578, 242, 75, 27), {}),
+            (pygame.Rect(745, 242, 54, 31), {}),
+            (pygame.Rect(860, 153, 117, 30), {}),
+            (pygame.Rect(886, 229, 25, 15), {}),
+            (pygame.Rect(909, 219, 76, 25), {}),
+            (pygame.Rect(809, 395, 58, 246), {}),
+            (pygame.Rect(865, 365, 147, 255), {}),
+
+            # past half
+            (pygame.Rect(999, 417, 34, 243), {}),
+            (pygame.Rect(1000, 435, 262, 250), {}),
+            (pygame.Rect(1247 + 4, 410, 36, 237), {}),
+            (pygame.Rect(1284, 380, 69, 242), {}),
+            (pygame.Rect(1016, 292, 28, 17), {}),
+            (pygame.Rect(1043, 259, 28, 13), {}),
+            (pygame.Rect(1040, 235, 97, 50), {}),
+            (pygame.Rect(1035, 258, 41, 21), {}),
+            (pygame.Rect(1122, 262, 38, 40), {}),
+            (pygame.Rect(1165, 178, 135, 37), {}),
+
+            # EXCLUDED FROM GRASS OVERLAY
+            (pygame.Rect(1321, 245, 86, 32), {"grass": False}),
+            (pygame.Rect(1615, 146, 83, 28), {"grass": False}),
+
+            (pygame.Rect(1675, 311, 72, 293), {}),
+            (pygame.Rect(1746, 345, 36, 304), {}),
+            (pygame.Rect(1782, 378, 53, 234), {}),
+            (pygame.Rect(1850, 284, 66, 29), {}),
+            (pygame.Rect(1944, 239, 57, 393), {}),
+            (pygame.Rect(1454, 196, 71, 25), {}),
+            (pygame.Rect(1347, 407, 342, 239), {}),
+            (pygame.Rect(1549, 374+6, 54, 28), {}),
+            (pygame.Rect(2000, 0, 50, 600), {}),
+        ]
+        water = [
+            pygame.Rect(454, 380, 234, 65),
+            pygame.Rect(726, 407, 90, 40),
+            pygame.Rect(1832, 383, 115, 37),
+            pygame.Rect(1913, 372, 40, 21),
+            pygame.Rect(1836, 379, 16, 12),
+        ]
+
+        fences = [
+            pygame.Rect(878, 307 - 32, 73, 8),
+            pygame.Rect(794, 267 - 30, 57, 6),
+            pygame.Rect(878 + 32, 307 - 32, 73, 8),
+            pygame.Rect(797 + 26, 267 - 30, 57, 6),
+            pygame.Rect(285, 258, 45, 17),
+            pygame.Rect(285 + 32, 258, 45, 17),
+
+            pygame.Rect(408, 258 - 26, 45, 17),
+            pygame.Rect(408 + 32, 258 - 26, 45, 17),
+
+            pygame.Rect(1138, 275 - 7, 38, 21),
+            pygame.Rect(1138 + 25, 275 - 7, 38, 21),
+        ]
+        fenceHBox = [
+            pygame.Rect(285, 287, 66, 6),
+            pygame.Rect(406, 283 - 21, 68, 9),
+
+            pygame.Rect(797, 267, 57, 6),
+            pygame.Rect(878, 307 - 3, 72 - 8, 7),
+
+            pygame.Rect(1134 + 5, 296, 80 - 24, 6),
+            pygame.Rect(1317, 245, 94, 15),
+
+            pygame.Rect(1615 - 4, 146, 83 + 8, 28 - 12)
+        ]
+
+        tree1 = [
+            pygame.Rect(200, 240 - 85, 93, 115)
+        ]
+        tree2 = [
+            pygame.Rect(521, 97 + 3, 100, 118),
+        ]
+        tree3 = [
+            pygame.Rect(866, 59 - 3, 103, 96 + 3),
+        ]
+        rockpile = [
+            pygame.Rect(499 - 27, 424+5, 158, 11),
+            pygame.Rect(499 + 47, 424+5, 158, 11),
+        ]
+        door_pos = pygame.Rect(1950, 195, 50, 50)  # for drawing
+        door_hitbox = pygame.Rect(1950 + 25, 195, 50, 50)  # for collision only
+
+        if not coins_generated:
+            # keep your manually placed coins
+            manual_coins = coins.copy()
+
+            # generate random coins too
+            random_coins = generate_coins_on_platforms(platforms, 40)
+
+            # combine both
+            coins = manual_coins + random_coins
+
+            coins_generated = True
+
+        def grassoverlayrepeat(x, y, platform_width, img):
+            overlays = []
+
+            start_x = x - 5
+            end_x = x + platform_width + 5
+            start_y = y - 1
+
+            img_width = img.get_width()
+            img_height = img.get_height()
+
+            current_x = start_x
+
+            while current_x < end_x:
+                remaining = end_x - current_x
+
+                # width we actually want to draw
+                draw_width = min(img_width, remaining)
+
+                # crop the image if needed
+                cropped_img = img.subsurface((0, 0, draw_width, img_height))
+
+                overlays.append((cropped_img, (current_x, start_y)))
+
+                current_x += img_width
+
+            return overlays
+
+        xg = 134
+        yg = 14
+
+        excluded_indices = {29}
+
+        grassoverlay = []
+
+        for item in platforms:
+            rect, flags = item
+
+            if not flags.get("grass", True):
+                continue
+
+            grassoverlay += grassoverlayrepeat(
+                rect.x,
+                rect.y,
+                rect.width,
+                grassoverlay_img
+            )
+
+        def generate_random_positions(min_x, max_x, min_y, max_y, min_distance, amount):
+            generated_bushes = []
+
+            used_x_positions = []
+
+            for _ in range(amount):
+                x = random.randint(min_x, max_x)
+                y = random.randint(min_y, max_y)
+
+                while any(abs(x - used_x) <= min_distance for used_x in used_x_positions):
+                    x = random.randint(min_x, max_x)
+
+                used_x_positions.append(x)
+
+                generated_bushes.append({
+                    "rect": pygame.Rect(x, y, 40, 21),
+                    "img": random.choice(bush_images)
+                })
+
+            return generated_bushes
+
+        def generate_random_flower_positions(min_x, max_x, min_y, max_y, min_distance, amount):
+            generated_flowers = []
+
+            used_x_positions = []
+
+            for _ in range(amount):
+                x = random.randint(min_x, max_x)
+                y = random.randint(min_y, max_y)
+
+                while any(abs(x - used_x) <= min_distance for used_x in used_x_positions):
+                    x = random.randint(min_x, max_x)
+
+                used_x_positions.append(x)
+
+                generated_flowers.append({
+                    "rect": pygame.Rect(x, y, 40, 21),
+                    "img": random.choice(flower_images)
+                })
+
+            return generated_flowers
+
+        flowers = []
+
+        bushes = []
+
+        # platform 1 bushes
+        bushes += generate_random_positions(
+            187,
+            455 - 40,
+            353,
+            354,
+            40,
+            3
+        )
+
+        # platform 2 bushes
+        bushes += generate_random_positions(
+            173,
+            175,
+            240,
+            240,
+            40,
+            1
+        )
+
+        # platform 3 bushes
+        bushes += generate_random_positions(
+            582,
+            652-40,
+            222,
+            222,
+            40,
+            1
+        )
+        # 544-5, 348, 120
+        bushes += generate_random_positions(
+            545,
+            539+120 - 40,
+            326,
+            326,
+            40,
+            1
+        )
+
+        bushes += generate_random_positions(
+            867,
+            1011 - 40,
+            343,
+            343,
+            55,
+            2
+        )
+
+        bushes += generate_random_positions(
+            912,
+            983 - 40,
+            197,
+            197,
+            40,
+            1
+        )
+
+        bushes += generate_random_positions(
+            1040,
+            1040 + 208 - 40,
+            405 + 31 - 21,
+            405 + 31 - 21,
+            40,
+            2
+        )
+
+        bushes += generate_random_positions(
+            1164,
+            1164+135 - 40,
+            162 + 18 - 21,
+            162 + 18 - 21,
+            40,
+            1
+        )
+
+        bushes += generate_random_positions(
+            1359,
+            1359 + 192 - 40,
+            371 + 36 - 21,
+            371 + 36 - 21,
+            40,
+            2
+        )
+
+        bushes += generate_random_positions(
+            1845,
+            1845 + 74 - 40,
+            261 + 25 - 21,
+            261 + 25 - 21,
+            40,
+            1
+        )
+
+        flowers += generate_random_flower_positions(
+            1282,
+            1282 + 73 - 23,
+            365 + 18 - 28,
+            365 + 18 - 28,
+            40,
+            1
+        )
+
+        flowers += generate_random_flower_positions(
+            1040,
+            1040 + 98 - 23,
+            213 + 22 - 28,
+            213 + 22 - 28,
+            40,
+            1
+        )
+
+        flowers += generate_random_flower_positions(
+            1118,
+            1118 + 43 - 23,
+            248 + 16 - 28,
+            248 + 16 - 28,
+            40,
+            1
+        )
+
+        flowers += generate_random_flower_positions(
+            1451,
+            1451 + 74 - 23,
+            175 + 22 - 28,
+            175 + 22 - 28,
+            40,
+            1
+        )
+
+        flowers += generate_random_flower_positions(
+            1607,
+            1607 + 67 - 23,
+            386 + 22 - 28,
+            386 + 22 - 28,
+            40,
+            1
+        )
+
+        flowers += generate_random_flower_positions(
+            1675,
+            1675 + 74 - 23,
+            286 + 26 - 28,
+            286 + 26 - 28,
+            40,
+            1
+        )
+
+        flowers += generate_random_flower_positions(
+            811,
+            811 + 56 - 23,
+            373 + 25 - 28,
+            373 + 25 - 28,
+            40,
+            1
+        )
+
+        flowers += generate_random_flower_positions(
+            689,
+            689 + 59 - 23,
+            342 + 24 - 28,
+            342 + 24 - 28,
+            40,
+            1
+        )
+
+        flowers += generate_random_flower_positions(
+            741,
+            741 + 55 - 23,
+            223 + 22 - 28,
+            223 + 22 - 28,
+            40,
+            1
+        )
+
+        flowers += generate_random_flower_positions(
+            134,
+            134 + 58 - 23,
+            327 + 23 - 28,
+            327 + 23 - 28,
+            40,
+            1
+        )
+
+        flowers += generate_random_flower_positions(
+            46,
+            46 + 86 - 23,
+            284 + 25 - 28,
+            284 + 25 - 28,
+            40,
+            1
+        )
+
+        spawnpoints = [pygame.Rect(15, 286+2, 10, 3)]
+        enemies = [
+            Enemy(525, 182, 80, slime, 'slime_1', enemy_frames),
+            Enemy(220, 235, 35, slime, 'slime_2', enemy_frames),
+
+            Enemy(1056+20, 375+25, 100, slime, 'slime_3', enemy_frames),
+            Enemy(1172+12, 140+5, 85, slime, 'slime_4', enemy_frames),
+            Enemy(1375+13, 365+7, 120, slime, 'slime_5', enemy_frames),
+        ]
+    elif level == 1:
+        background_rects, spawnpoints = [], []
+        platforms = [pygame.Rect(0, 500, 800, 100)]
+        enemies = []
+    else:
+        background_rects, spawnpoints = [], []
+        platforms = [pygame.Rect(0, 550, 800, 50), pygame.Rect(200, 400, 100, 20)]
+        enemies = []
+
+    enemies = [e for e in enemies if e.enemy_id not in defeated_enemies]
+
+    while True:
+        dt = clock.tick(60) / 1000
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT: return "menu", show_hitboxes, None, player.rect.x, player.rect.y
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE: return "menu", show_hitboxes, None, player.rect.x, player.rect.y
+                if event.key == pygame.K_TAB: dev_mode = not dev_mode
+                if event.key == pygame.K_h: show_controls = not show_controls
+                if event.key == pygame.K_F3 or event.key == pygame.K_BACKQUOTE: show_hitboxes = not show_hitboxes
+                if event.key == pygame.K_r: respawn(player)
+
+        keys = pygame.key.get_pressed()
+        player.handle_input(keys)
+        player.apply_gravity()
+        player.move_and_collide(platforms, fenceHBox, underground)
+        if player.rect.colliderect(door_hitbox):
+            print("Touching door")
+        camera_x = 0 if dev_mode else max(0, min(player.rect.x - SCREEN_WIDTH // 2, 2000 - SCREEN_WIDTH))
+        for coin in coins[:]:
+            if player.rect.colliderect(coin["rect"]):
+                coins.remove(coin)
+                coin_count += 1
+                coin_get.play()
+        player.update_animation(dt)
+
+        # bounds
+        if player.rect.left < 0:
+            player.rect.left = 0
+
+        if player.rect.top > SCREEN_HEIGHT:
+            respawn(player)
+
+        for e in enemies:
+            e.update(dt)
+
+            if player.rect.colliderect(e.rect):
+                enemy_kill_count += 1
+                defeated_enemies.append(e.enemy_id)
+
+                return "combat", show_hitboxes, e, player.rect.x, player.rect.y
+
+        # ===== BOSS DOOR CHECK =====
+        if player.rect.colliderect(door_hitbox):
+
+                if coin_count >= required_coins and len(defeated_enemies) >= required_fights:
+                    print("Entering boss fight...")
+
+                    # TEMPORARY BOSS PLACEHOLDER
+                    pygame.time.delay(1000)
+
+                    return "boss", show_hitboxes, None, player.rect.x, player.rect.y
+
+                else:
+                    print("You need more coins or fights!")
+
+        # Draw Sequence
+        screen.blit(bg_img, (0, 0))
+        update_and_draw_clouds(screen, dt)
+        draw_platform(screen, door_img, door_pos, camera_x)
+        for br in background_rects:
+            draw_platform(screen, bg_tile_img, br, camera_x)
+        for w in water:
+            draw_platform(screen, waterimg, w, camera_x)
+        for r in rockpile: #rockpile
+            draw_platform(screen, rock_pile, r, camera_x)
+        for u in underground:
+            draw_platform(screen, Ground3_img, u, camera_x)
+        for p in platforms:
+            draw_platform(screen, grass_img, p, camera_x)
+        for t1 in tree1:
+            draw_platform(screen, tree1_img, t1, camera_x)
+        for t2 in tree2:
+            draw_platform(screen, tree2_img, t2, camera_x)
+        for t3 in tree3:
+            draw_platform(screen, tree3_img, t3, camera_x)
+        for r in rockpile: #rockpile
+            draw_platform(screen, rock_pile, r, camera_x)
+        for s in spawnpoints:
+            screen.blit(spawn_img, (s.x - camera_x, s.y))
+        player.draw(screen, camera_x)
+        for img, pos in grassoverlay:
+            screen.blit(img, (pos[0] - camera_x, pos[1]))
+        for f in fences:
+            screen.blit(fence1_img, (f.x - camera_x, f.y))
+        for b in bushes:
+            draw_platform(screen, b["img"], b["rect"], camera_x)
+        for fl in flowers:
+            screen.blit(fl["img"], (fl["rect"].x - camera_x, fl["rect"].y))
+        for fh in fenceHBox:
+            draw_platform(screen, fencef_img, fh, camera_x)
+        for e in enemies: e.draw(screen, camera_x)
+        for coin in coins:
+            coin["offset"] += dt * 4
+
+            float_y = coin["base_y"] + math.sin(coin["offset"]) * 5
+
+            screen.blit(
+                coin["img"],
+                (coin["rect"].x - camera_x, float_y)
+            )
+
+        if show_controls:
+            ctrls = ["WASD: Move", "SPACE: Jump", "TAB: Disable Cam Follow", "H: Controls", "F3: Hitboxes", "R: Respawn"]
+            for i, line in enumerate(ctrls):
+                screen.blit(ui_font.render(line, True, WHITE), (10, 10 + i * 18))
+
+        if show_hitboxes:
+            pygame.draw.rect(screen, (255, 255, 0),
+                             (player.rect.x - camera_x, player.rect.y, 22, 30), 1)
+
+            for e in enemies:
+                pygame.draw.rect(screen, (0, 255, 0),
+                                 (e.rect.x - camera_x, e.rect.y, 22, 30), 1)
+
+            for p in platforms:
+                rect = p[0] if isinstance(p, tuple) else p
+                pygame.draw.rect(screen, (0, 0, 255),
+                                 (rect.x - camera_x, rect.y, rect.width, rect.height), 1)
+
+            # COIN HITBOXES
+            for coin in coins:
+                pygame.draw.rect(screen, (255, 165, 0),
+                                 (coin["rect"].x - camera_x,
+                                  coin["rect"].y,
+                                  coin["rect"].width,
+                                  coin["rect"].height), 1)
+            for u in underground:
+                rect = u[0] if isinstance(u, tuple) else u
+                pygame.draw.rect(
+                    screen,
+                    (0, 0, 255),
+                    (rect.x - camera_x, rect.y, rect.width, rect.height),
+                    1
+                )
+
+            for fh in fenceHBox:
+                rect = fh[0] if isinstance(fh, tuple) else fh
+                pygame.draw.rect(
+                    screen,
+                    (0, 0, 255),  # purple so it's easy to see
+                    (rect.x - camera_x, rect.y, rect.width, rect.height),
+                    1
+                )
+
+        # ===== COIN UI (MUST BE LAST) =====
+        screen_width = screen.get_width()
+
+        padding = 10
+        box_size = 34
+
+        box_x = screen_width - box_size - padding
+        box_y = padding
+
+        box = pygame.Rect(box_x, box_y, box_size, box_size)
+
+        pygame.draw.rect(screen, (0, 0, 0), box, border_radius=8)
+        pygame.draw.rect(screen, (255, 215, 0), box, 2, border_radius=8)
+
+        screen.blit(coin_img, (box_x + 6, box_y + 6))
+
+        text = coin_font.render(str(coin_count), True, (255, 255, 255))
+        screen.blit(text, (box_x - 25, box_y + 8))
+
+        # ===== OBJECTIVE UI (CENTER TOP) =====
+        objective_text = ui_font.render(
+            f"Objective: Collect {required_coins} coins and defeat {required_fights} enemies",
+            True,
+            (255, 255, 255)
+        )
+
+        text_width = objective_text.get_width()
+        text_height = objective_text.get_height()
+
+        screen_width = screen.get_width()
+
+        x = (screen_width - text_width) // 2
+        y = 10  # top padding
+
+        # background box
+        bg_rect = pygame.Rect(
+            x - 10,
+            y - 5,
+            text_width + 20,
+            text_height + 10
+        )
+
+        pygame.draw.rect(screen, (0, 0, 0), bg_rect, border_radius=6)
+        pygame.draw.rect(screen, (255, 255, 255), bg_rect, 2, border_radius=6)
+
+        screen.blit(objective_text, (x, y))
+
+        # ===== ENEMY UI (UNDER COIN UI) =====
+        enemy_box_y = box_y + box_size + 8  # under coin box
+
+        enemy_box = pygame.Rect(box_x, enemy_box_y, box_size, box_size)
+
+        pygame.draw.rect(screen, (0, 0, 0), enemy_box, border_radius=8)
+        pygame.draw.rect(screen, (200, 50, 50), enemy_box, 2, border_radius=8)
+
+        # enemy icon (use sprite)
+        enemy_icon = pygame.transform.scale(enemy_frames[0], (20, 20))
+        screen.blit(enemy_icon, (box_x + 6, enemy_box_y + 6))
+
+        # enemy counter text
+        enemy_text = coin_font.render(f"{enemy_kill_count}/{required_fights}", True, (255, 255, 255))
+        screen.blit(enemy_text, (box_x - 40, enemy_box_y + 8))
+
+        pygame.display.flip()
