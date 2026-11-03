@@ -1,7 +1,26 @@
 import pygame
+import tkinter as tk
+from PIL import Image, ImageTk
 from network import NetworkClient
 
 pygame.init()
+
+def center_window(window, width, height):
+
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+
+    x = (screen_width - width) // 2
+    y = (screen_height - height) // 2 - 35
+    window.geometry(f"{width}x{height}+{x}+{y}")
+
+window = tk.Tk()
+window.title("Epic Francesco - Main Menu")
+center_window(window, 1000, 600)
+background_image = Image.open("Assets/MainMenu.png")
+background_photo = ImageTk.PhotoImage(background_image)
+background_label = tk.Label(window, image=background_photo)
+background_label.place(x=0, y=0, relwidth=1, relheight=1)
 
 # -------------------- SETTINGS --------------------
 
@@ -9,10 +28,6 @@ SCREEN_WIDTH = 1000
 SCREEN_HEIGHT = 600
 FPS = 60
 
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-screen.fill((135, 206, 235))
-pygame.display.flip()
-pygame.display.set_caption("Character and Customizable Map")
 clock = pygame.time.Clock()
 font = pygame.font.Font(None, 28)
 
@@ -133,191 +148,202 @@ if not connected:
     pygame.quit()
     exit()
 
-running = True
+def main_loop(): # function for start so no need to change running variable
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("Character and Customizable Map")
 
-while running:
-    clock.tick(FPS)
+    running = True # sets the game to running, change to true when clicking start
+    while running:
+        clock.tick(FPS)
 
-    mouse_x, mouse_y = pygame.mouse.get_pos()
-    world_mouse_x = mouse_x + camera_x
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        world_mouse_x = mouse_x + camera_x
 
-    # -------------- EVENTS --------------
+        # -------------- EVENTS --------------
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-
-        if event.type == pygame.KEYDOWN:
-
-            if event.key == pygame.K_ESCAPE:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
                 running = False
 
-            if event.key == pygame.K_TAB:
-                editing = not editing
-                selected_platform = None
+            if event.type == pygame.KEYDOWN:
+
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+
+                if event.key == pygame.K_TAB:
+                    editing = not editing
+                    selected_platform = None
+                    player.vel_x = 0
+                    player.vel_y = 0
+
+                if event.key == pygame.K_1:
+                    selected_character = "Blue"
+                    player.color = CHARACTERS[selected_character]
+
+                elif event.key == pygame.K_2:
+                    selected_character = "Green"
+                    player.color = CHARACTERS[selected_character]
+
+                elif event.key == pygame.K_3:
+                    selected_character = "Brown"
+                    player.color = CHARACTERS[selected_character]
+
+                if editing and event.key == pygame.K_p:
+                    platforms.append(
+                        pygame.Rect(
+                            world_mouse_x,
+                            mouse_y,
+                            platform_width,
+                            platform_height,
+                        )
+                    )
+
+                if (
+                    editing
+                    and event.key == pygame.K_DELETE
+                    and selected_platform is not None
+                ):
+                    if selected_platform in platforms:
+                        platforms.remove(selected_platform)
+
+                    selected_platform = None
+
+            if editing and event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    selected_platform = None
+
+                    for platform in reversed(platforms):
+                        if platform.collidepoint(world_mouse_x, mouse_y):
+                            selected_platform = platform
+
+                            drag_offset_x = world_mouse_x - platform.x
+                            drag_offset_y = mouse_y - platform.y
+                            break
+
+            if editing and event.type == pygame.MOUSEBUTTONUP:
+                if event.button == 1:
+                    selected_platform = None
+
+        # ------------- UPDATE ------------
+
+        
+        if not editing:
+            keys = pygame.key.get_pressed()
+
+            player.handle_input(keys)
+            player.update(platforms)
+
+            network.send_position(
+                player.rect.x,
+                player.rect.y,
+                selected_character
+            )
+
+            if player.rect.top > SCREEN_HEIGHT + 200:
+                player.rect.topleft = (60, 450)
                 player.vel_x = 0
                 player.vel_y = 0
 
-            if event.key == pygame.K_1:
-                selected_character = "Blue"
-                player.color = CHARACTERS[selected_character]
+            camera_x = player.rect.centerx - SCREEN_WIDTH // 2
 
-            elif event.key == pygame.K_2:
-                selected_character = "Green"
-                player.color = CHARACTERS[selected_character]
+            camera_x = max(
+                0,
+                min(camera_x, MAP_WIDTH - SCREEN_WIDTH),
+            )
 
-            elif event.key == pygame.K_3:
-                selected_character = "Brown"
-                player.color = CHARACTERS[selected_character]
 
-            if editing and event.key == pygame.K_p:
-                platforms.append(
-                    pygame.Rect(
-                        world_mouse_x,
-                        mouse_y,
-                        platform_width,
-                        platform_height,
-                    )
-                )
+            if player.rect.top > SCREEN_HEIGHT + 200:
+                player.rect.topleft = (60, 450)
+                player.vel_x = 0
+                player.vel_y = 0
 
+            camera_x = player.rect.centerx - SCREEN_WIDTH // 2
+
+            camera_x = max(
+                0,
+                min(camera_x, MAP_WIDTH - SCREEN_WIDTH),
+            )
+
+        else:
             if (
-                editing
-                and event.key == pygame.K_DELETE
+                pygame.mouse.get_pressed()[0]
                 and selected_platform is not None
             ):
-                if selected_platform in platforms:
-                    platforms.remove(selected_platform)
+                selected_platform.x = world_mouse_x - drag_offset_x
+                selected_platform.y = mouse_y - drag_offset_y
 
-                selected_platform = None
+        # -------------- DRAW ---------------
 
-        if editing and event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:
-                selected_platform = None
+        screen.fill((135, 206, 235))
 
-                for platform in reversed(platforms):
-                    if platform.collidepoint(world_mouse_x, mouse_y):
-                        selected_platform = platform
-
-                        drag_offset_x = world_mouse_x - platform.x
-                        drag_offset_y = mouse_y - platform.y
-                        break
-
-        if editing and event.type == pygame.MOUSEBUTTONUP:
-            if event.button == 1:
-                selected_platform = None
-
-    # ------------- UPDATE ------------
-
-    
-    if not editing:
-        keys = pygame.key.get_pressed()
-
-        player.handle_input(keys)
-        player.update(platforms)
-
-        network.send_position(
-            player.rect.x,
-            player.rect.y,
-            selected_character
-        )
-
-        if player.rect.top > SCREEN_HEIGHT + 200:
-            player.rect.topleft = (60, 450)
-            player.vel_x = 0
-            player.vel_y = 0
-
-        camera_x = player.rect.centerx - SCREEN_WIDTH // 2
-
-        camera_x = max(
-            0,
-            min(camera_x, MAP_WIDTH - SCREEN_WIDTH),
-        )
-
-
-        if player.rect.top > SCREEN_HEIGHT + 200:
-            player.rect.topleft = (60, 450)
-            player.vel_x = 0
-            player.vel_y = 0
-
-        camera_x = player.rect.centerx - SCREEN_WIDTH // 2
-
-        camera_x = max(
-            0,
-            min(camera_x, MAP_WIDTH - SCREEN_WIDTH),
-        )
-
-    else:
-        if (
-            pygame.mouse.get_pressed()[0]
-            and selected_platform is not None
-        ):
-            selected_platform.x = world_mouse_x - drag_offset_x
-            selected_platform.y = mouse_y - drag_offset_y
-
-    # -------------- DRAW ---------------
-
-    screen.fill((135, 206, 235))
-
-    for platform in platforms:
-        screen_rect = pygame.Rect(
-            platform.x - camera_x,
-            platform.y,
-            platform.width,
-            platform.height,
-        )
-
-        pygame.draw.rect(screen, BROWN, screen_rect)
-
-    player.draw(screen, camera_x)
-
-    # ------------- OTHER PLAYERS -------------
-
-    my_id, other_players = network.get_players()
-
-    for player_id, data in other_players.items():
-
-        if player_id == my_id:
-            continue
-
-        other_x = data["x"]
-        other_y = data["y"]
-
-        other_color = CHARACTERS.get(
-            data["color"],
-            BLUE
-        )
-
-        pygame.draw.rect(
-            screen,
-            other_color,
-            (
-                other_x - camera_x,
-                other_y,
-                30,
-                40
+        for platform in platforms:
+            screen_rect = pygame.Rect(
+                platform.x - camera_x,
+                platform.y,
+                platform.width,
+                platform.height,
             )
-        )
 
-    if editing:
-        instructions = [
-            "EDIT MODE",
-            "Left-click and drag a platform to move it",
-            "P: add platform | Delete: remove selected platform",
-            "TAB: play mode",
-        ]
+            pygame.draw.rect(screen, BROWN, screen_rect)
 
-    else:
-        instructions = [
-            "PLAY MODE",
-            "A/D or Left/Right: move | Space/W/Up: jump",
-            "1/2/3: change character | TAB: edit mode",
-        ]
+        player.draw(screen, camera_x)
 
-    for i, line in enumerate(instructions):
-        text_surface = font.render(line, True, BLACK)
-        screen.blit(text_surface, (15, 15 + i * 28))
+        # ------------- OTHER PLAYERS -------------
 
-    pygame.display.flip()
+        my_id, other_players = network.get_players()
 
-network.close()
-pygame.quit()
+        for player_id, data in other_players.items():
+
+            if player_id == my_id:
+                continue
+
+            other_x = data["x"]
+            other_y = data["y"]
+
+            other_color = CHARACTERS.get(
+                data["color"],
+                BLUE
+            )
+
+            pygame.draw.rect(
+                screen,
+                other_color,
+                (
+                    other_x - camera_x,
+                    other_y,
+                    30,
+                    40
+                )
+            )
+
+        if editing:
+            instructions = [
+                "EDIT MODE",
+                "Left-click and drag a platform to move it",
+                "P: add platform | Delete: remove selected platform",
+                "TAB: play mode",
+            ]
+
+        else:
+            instructions = [
+                "PLAY MODE",
+                "A/D or Left/Right: move | Space/W/Up: jump",
+                "1/2/3: change character | TAB: edit mode",
+            ]
+
+        for i, line in enumerate(instructions):
+            text_surface = font.render(line, True, BLACK)
+            screen.blit(text_surface, (15, 15 + i * 28))
+
+        pygame.display.flip()
+
+    network.close()
+    pygame.quit()
+
+#----------------- TKINTER MAIN GUI ------------------
+def main_menu_loop():
+    start_button = tk.Button(window, text="Play", font=("Arial", 24), command=lambda: [window.destroy(), main_loop()])
+    # add ttk separator to align play button
+    start_button.pack()
+window.mainloop()
+main_loop()
