@@ -125,7 +125,7 @@ platform_height = 20
 
 # ---------------- MULTIPLAYER ----------------
 
-network = NetworkClient("ws://127.0.0.1:8765")
+network = NetworkClient("ws://172.24.17.8:8765")
 
 connected = network.connect()
 
