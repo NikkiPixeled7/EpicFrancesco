@@ -90,7 +90,6 @@ class NetworkClient:
             "color": color
         }
 
-        # Keep only the newest movement update
         try:
             self.send_queue.put_nowait(data)
 
