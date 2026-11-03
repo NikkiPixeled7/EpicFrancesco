@@ -1,0 +1,10 @@
+    SCALE = 2
+    alienSkin = [
+        pygame.transform.scale(pygame.image.load(f"AlienSkin{i}.png").convert_alpha(), (11 * SCALE, 15 * SCALE)) for i
+        in range(1, 4)]
+    alienSkin.append(
+        pygame.transform.scale(pygame.image.load("AlienSkinJump.png").convert_alpha(), (11 * SCALE, 15 * SCALE)))
+    enemy_frames = [pygame.transform.scale(pygame.image.load(f"RedEnemy{i}.png").convert_alpha(), (22, 30)) for i in
+                    range(1, 5)]
+
+    player = Player(p_x, p_y, alienSkin)
