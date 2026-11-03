@@ -11,3 +11,161 @@
 # below is oop, from a player class
 
     player = Player(p_x, p_y, alienSkin)
+
+
+
+
+
+
+
+class Player:
+    def __init__(self, x, y, chosenCharacter=None):
+        self.rect = pygame.Rect(x, y, 22, 30)
+        self.vel_x = self.vel_y = 0
+        self.on_ground = False
+        self.chosenCharacter = chosenCharacter or []
+        self.frame_index = 0
+        self.frame_timer = 0
+        self.facing_right = True
+        self.air_timer = 0
+        self.spawn_x = 15
+        self.spawn_y = 250
+
+    def handle_input(self, keys):
+        self.vel_x = 0
+        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            self.vel_x, self.facing_right = -MOVE_SPEED, False
+        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            self.vel_x, self.facing_right = MOVE_SPEED, True
+        if (keys[pygame.K_SPACE] or keys[pygame.K_w] or keys[pygame.K_UP]):
+            if self.on_ground:
+                self.vel_y = JUMP_STRENGTH
+                jump.play()
+                self.on_ground = False
+
+    def apply_gravity(self):
+        self.vel_y = min(15, self.vel_y + GRAVITY)
+
+    def move_and_collide(self, platforms, fenceHBox, underground):
+        self.rect.x += self.vel_x
+
+        # horizontal collision (platforms)
+        for p in platforms:
+            rect = p[0] if isinstance(p, tuple) else p
+            if self.rect.colliderect(rect):
+                if self.vel_x > 0:
+                    self.rect.right = rect.left
+                elif self.vel_x < 0:
+                    self.rect.left = rect.right
+
+        # horizontal collision (fences)
+        for fh in fenceHBox:
+            rect = fh[0] if isinstance(fh, tuple) else fh
+            if self.rect.colliderect(rect):
+                if self.vel_x > 0:
+                    self.rect.right = rect.left
+                elif self.vel_x < 0:
+                    self.rect.left = rect.right
+
+        was_in_air = not self.on_ground
+        self.rect.y += self.vel_y
+        self.on_ground = False
+
+        # vertical collision (platforms)
+        for p in platforms:
+            rect = p[0] if isinstance(p, tuple) else p
+
+            if self.rect.colliderect(rect):
+                if self.vel_y > 0:
+                    self.rect.bottom = rect.top
+                    self.vel_y = 0
+                    self.on_ground = True
+                elif self.vel_y < 0:
+                    self.rect.top = rect.bottom
+                    self.vel_y = 0
+
+                    if was_in_air:
+                        landing.play()
+                        was_in_air = False
+
+        # vertical collision (fences)
+        for fh in fenceHBox:
+            rect = fh[0] if isinstance(fh, tuple) else fh
+
+            if self.rect.colliderect(rect):
+                if self.vel_y > 0:
+                    self.rect.bottom = rect.top
+                    self.vel_y = 0
+                    self.on_ground = True
+                elif self.vel_y < 0:
+                    self.rect.top = rect.bottom
+                    self.vel_y = 0
+
+                    if was_in_air:
+                        landing.play()
+                        was_in_air = False
+
+        # vertical collision (underground design)
+        for u in underground:
+            rect = u[0] if isinstance(u, tuple) else u
+
+            if self.rect.colliderect(rect):
+                if self.vel_y > 0:
+                    self.rect.bottom = rect.top
+                    self.vel_y = 0
+                    self.on_ground = True
+                elif self.vel_y < 0:
+                    self.rect.top = rect.bottom
+                    self.vel_y = 0
+
+                    if was_in_air:
+                        landing.play()
+                        was_in_air = False
+
+        self.air_timer = 0 if self.on_ground else self.air_timer + 1
+
+    def update_animation(self, dt):
+        if not self.chosenCharacter: return
+        if self.air_timer > 1:
+            self.frame_index = 3
+        elif self.vel_x == 0:
+            self.frame_index = 2
+        else:
+            self.frame_timer += dt
+            if self.frame_timer >= 0.1:
+                self.frame_timer, self.frame_index = 0, (self.frame_index + 1) % 2
+
+    def draw(self, screen, camera_x):
+        if self.chosenCharacter:
+            frame = self.chosenCharacter[self.frame_index]
+            if not self.facing_right: frame = pygame.transform.flip(frame, True, False)
+            screen.blit(frame, (self.rect.x - camera_x, self.rect.y))
+
+
+class Enemy:
+    def __init__(self, x, y, patrol_range, enemy_data, enemy_id, frames):
+        self.rect = pygame.Rect(x, y, 22, 30)
+        self.start_x, self.range = x, patrol_range
+        self.dir, self.speed = 1, 1
+        self.enemy_data, self.enemy_id = enemy_data, enemy_id
+        self.frames, self.frame_index, self.frame_timer = frames, 0, 0
+
+    def update(self, dt):
+        self.rect.x += self.speed * self.dir
+        if self.rect.x > self.start_x + self.range or self.rect.x < self.start_x:
+            self.dir *= -1
+        self.frame_timer += dt
+        if self.frame_timer >= 0.25:
+            self.frame_timer, self.frame_index = 0, (self.frame_index + 1) % len(self.frames)
+
+    def draw(self, screen, camera_x):
+        frame = self.frames[self.frame_index]
+        if self.dir < 0: frame = pygame.transform.flip(frame, True, False)
+        screen.blit(frame, (self.rect.x - camera_x, self.rect.y))
+
+def respawn(self):
+    self.rect.x = self.spawn_x
+    self.rect.y = self.spawn_y
+    self.vel_x = 0
+    self.vel_y = 0
+    self.on_ground = False
