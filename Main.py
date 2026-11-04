@@ -1,5 +1,6 @@
 import pygame
 import tkinter as tk
+from tkinter import ttk
 from PIL import Image, ImageTk
 from network import NetworkClient
 
@@ -13,14 +14,6 @@ def center_window(window, width, height):
     x = (screen_width - width) // 2
     y = (screen_height - height) // 2 - 35
     window.geometry(f"{width}x{height}+{x}+{y}")
-
-window = tk.Tk()
-window.title("Epic Francesco - Main Menu")
-center_window(window, 1000, 600)
-background_image = Image.open("Assets/MainMenu.png")
-background_photo = ImageTk.PhotoImage(background_image)
-background_label = tk.Label(window, image=background_photo)
-background_label.place(x=0, y=0, relwidth=1, relheight=1)
 
 # -------------------- SETTINGS --------------------
 
@@ -341,9 +334,27 @@ def main_loop(): # function for start so no need to change running variable
     pygame.quit()
 
 #----------------- TKINTER MAIN GUI ------------------
+
 def main_menu_loop():
-    start_button = tk.Button(window, text="Play", font=("Arial", 24), command=lambda: [window.destroy(), main_loop()])
-    # add ttk separator to align play button
-    start_button.pack()
-window.mainloop()
-main_loop()
+
+    # ---------- Window Setup ----------
+
+    window = tk.Tk()
+    window.title("Epic Francesco - Main Menu")
+    center_window(window, 1000, 600)
+    background_image = Image.open("Assets/MainMenu.png")
+    background_photo = ImageTk.PhotoImage(background_image)
+    background_label = tk.Label(window, image=background_photo)
+    background_label.place(x=0, y=0, relwidth=1, relheight=1)
+
+    # --------- Gui Setup ---------
+
+    play_image = Image.open("Assets/PlayButton.png")
+    play_photo = ImageTk.PhotoImage(play_image)
+
+    start_button = tk.Button(window, image=play_photo, command=lambda: [window.destroy(), main_loop()], borderwidth=0, highlightthickness=0, relief="flat")
+    start_button.pack(pady=50)
+
+    window.mainloop()
+
+main_menu_loop()
