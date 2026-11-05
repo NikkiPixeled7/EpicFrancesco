@@ -32,6 +32,7 @@ CHARACTERS = {
 }
 
 selected_character = "Francesco"
+CHARACTER_IDLE_IMAGES = {}
 
 
 
@@ -160,12 +161,39 @@ pygame.transform.scale(pygame.image.load(f"francesco_{i}.png").convert_alpha(), 
 
 francesco.append(pygame.transform.scale(pygame.image.load("francesco_jump.png").convert_alpha(), (11 * SCALE, 15 * SCALE)))
 CHARACTERS["Francesco"] = francesco
-CHARACTER_IDLE_IMAGES = {
-    "Francesco": pygame.transform.scale(
-        pygame.image.load("francesco_idle.png").convert_alpha(),
-        (11 * SCALE, 15 * SCALE),
-    )
-}
+CHARACTER_IDLE_IMAGES["Francesco"] = pygame.transform.scale(
+    pygame.image.load("francesco_idle.png").convert_alpha(),
+    (11 * SCALE, 15 * SCALE),
+)
+
+SCALE = 5
+giuseppe = [
+pygame.transform.scale(pygame.image.load(f"giuseppe_{i}.png").convert_alpha(), (11 * SCALE, 15 * SCALE)) for i
+        in range(3)]
+
+# the file names will be "SkinName" followed by a number increasing by 1 in order of animation, range is lowest number to highest number plus one
+
+giuseppe.append(pygame.transform.scale(pygame.image.load("giuseppe_jump.png").convert_alpha(), (11 * SCALE, 15 * SCALE)))
+CHARACTERS["Giuseppe"] = giuseppe
+CHARACTER_IDLE_IMAGES["Giuseppe"] = pygame.transform.scale(
+    pygame.image.load("giuseppe_idle.png").convert_alpha(),
+    (11 * SCALE, 15 * SCALE),
+)
+
+SCALE = 5
+alfredo = [
+pygame.transform.scale(pygame.image.load(f"alfredo_{i}.png").convert_alpha(), (11 * SCALE, 15 * SCALE)) for i
+        in range(3)]
+
+# the file names will be "SkinName" followed by a number increasing by 1 in order of animation, range is lowest number to highest number plus one
+
+alfredo.append(pygame.transform.scale(pygame.image.load("alfredo_jump.png").convert_alpha(), (11 * SCALE, 15 * SCALE)))
+CHARACTERS["Alfredo"] = alfredo
+CHARACTER_IDLE_IMAGES["Alfredo"] = pygame.transform.scale(
+    pygame.image.load("alfredo_idle.png").convert_alpha(),
+    (11 * SCALE, 15 * SCALE),
+)
+
 
 # below is oop, from a player class
 
@@ -227,12 +255,12 @@ while running:
                 player.idle_image = CHARACTER_IDLE_IMAGES.get(selected_character)
 
             elif event.key == pygame.K_2:
-                selected_character = "Green"
+                selected_character = "Giuseppe"
                 player.chosenCharacter = CHARACTERS[selected_character]
                 player.idle_image = CHARACTER_IDLE_IMAGES.get(selected_character)
 
             elif event.key == pygame.K_3:
-                selected_character = "Brown"
+                selected_character = "Alfredo"
                 player.chosenCharacter = CHARACTERS[selected_character]
                 player.idle_image = CHARACTER_IDLE_IMAGES.get(selected_character)
 
