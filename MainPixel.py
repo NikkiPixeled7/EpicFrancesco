@@ -4,6 +4,11 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 from network import NetworkClient
 
+# ------------- Globals -------------
+
+current_background = 0
+background_photo = None
+
 pygame.init()
 
 def center_window(window, width, height):
@@ -142,6 +147,9 @@ if not connected:
     exit()
 
 def main_loop(): # function for start so no need to change running variable
+
+    global editing, selected_platform, selected_character, camera_x
+
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Character and Customizable Map")
 
@@ -339,21 +347,75 @@ def main_menu_loop():
 
     # ---------- Window Setup ----------
 
+    # background image list
+
+    background_images = [
+        "Assets/MainMenuF1.png",
+        "Assets/MainMenuF2.png",
+        "Assets/MainMenuF3.png",
+        "Assets/MainMenuF4.png",
+        "Assets/MainMenuF5.png",
+        "Assets/MainMenuF4.png",
+        "Assets/MainMenuF3.png",
+        "Assets/MainMenuF2.png",
+        "Assets/MainMenuF1.png",
+        "Assets/MainMenuFN1.png",
+        "Assets/MainMenuFN2.png",
+        "Assets/MainMenuFN3.png",
+        "Assets/MainMenuFN4.png",
+        "Assets/MainMenuFN3.png",
+        "Assets/MainMenuFN2.png",
+        "Assets/MainMenuFN1.png"
+    ]
+
+    # intervals
+
+    normal_intervals = 50
+    long_intervals = 150
+
+    # image animation function
+
+    def animate_background():
+
+        global current_background, background_photo
+
+        background_image = Image.open(background_images[current_background])
+        background_image_resized = background_image.resize((1000, 600), Image.Resampling.LANCZOS)
+        background_photo = ImageTk.PhotoImage(background_image_resized)
+        background_label.config(image=background_photo)
+
+        if current_background == 4 or current_background == 12:
+            delay = long_intervals
+        else:
+            delay = normal_intervals
+
+        current_background += 1
+
+        if current_background >= len(background_images):
+            current_background = 0
+
+        window.after(delay, animate_background)
+
     window = tk.Tk()
     window.title("Epic Francesco - Main Menu")
     center_window(window, 1000, 600)
-    background_image = Image.open("Assets/MainMenu.png")
-    background_photo = ImageTk.PhotoImage(background_image)
-    background_label = tk.Label(window, image=background_photo)
+
+    spacing_frame = tk.Frame(window, height=185)
+    spacing_frame.pack(side="top")
+
+    background_label = tk.Label(window)
     background_label.place(x=0, y=0, relwidth=1, relheight=1)
+
+    animate_background()
 
     # --------- Gui Setup ---------
 
     play_image = Image.open("Assets/PlayButton.png")
-    play_photo = ImageTk.PhotoImage(play_image)
+    play_image_resized = play_image.resize((100, 75), Image.Resampling.LANCZOS)
+    play_photo_resized = ImageTk.PhotoImage(play_image_resized)
 
-    start_button = tk.Button(window, image=play_photo, command=lambda: [window.destroy(), main_loop()], borderwidth=0, highlightthickness=0, relief="flat")
-    start_button.pack(pady=50)
+    start_button = tk.Button(window, image=play_photo_resized, command=lambda: [window.destroy(), main_loop()], borderwidth=0, highlightthickness=0, relief="flat")
+    start_button.pack(pady=5)
 
     window.mainloop()
 
