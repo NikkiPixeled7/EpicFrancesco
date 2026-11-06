@@ -350,22 +350,22 @@ def main_menu_loop():
     # background image list
 
     background_images = [
-        "Assets/MainMenuF1.png",
-        "Assets/MainMenuF2.png",
-        "Assets/MainMenuF3.png",
-        "Assets/MainMenuF4.png",
-        "Assets/MainMenuF5.png",
-        "Assets/MainMenuF4.png",
-        "Assets/MainMenuF3.png",
-        "Assets/MainMenuF2.png",
-        "Assets/MainMenuF1.png",
-        "Assets/MainMenuFN1.png",
-        "Assets/MainMenuFN2.png",
-        "Assets/MainMenuFN3.png",
-        "Assets/MainMenuFN4.png",
-        "Assets/MainMenuFN3.png",
-        "Assets/MainMenuFN2.png",
-        "Assets/MainMenuFN1.png"
+        "Assets/MainMenuN.png",
+        "Assets/MainMenuP1.png",
+        "Assets/MainMenuP2.png",
+        "Assets/MainMenuP3.png",
+        "Assets/MainMenuP4.png",
+        "Assets/MainMenuP3.png",
+        "Assets/MainMenuP2.png",
+        "Assets/MainMenuP1.png",
+        "Assets/MainMenuN.png",
+        "Assets/MainMenuN1.png",
+        "Assets/MainMenuN2.png",
+        "Assets/MainMenuN3.png",
+        "Assets/MainMenuN4.png",
+        "Assets/MainMenuN3.png",
+        "Assets/MainMenuN2.png",
+        "Assets/MainMenuN1.png"
     ]
 
     # intervals
@@ -400,7 +400,7 @@ def main_menu_loop():
     window.title("Epic Francesco - Main Menu")
     center_window(window, 1000, 600)
 
-    spacing_frame = tk.Frame(window, height=185)
+    spacing_frame = tk.Frame(window, height=170)
     spacing_frame.pack(side="top")
 
     background_label = tk.Label(window)
