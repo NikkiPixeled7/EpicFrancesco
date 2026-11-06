@@ -480,21 +480,27 @@ def main_loop(): # function for start so no need to change running variable
             other_x = data["x"]
             other_y = data["y"]
 
-            other_color = CHARACTERS.get(
-                data["color"],
-                BLUE
-            )
-
-            pygame.draw.rect(
-                screen,
-                other_color,
-                (
-                    other_x - camera_x,
-                    other_y,
-                    30,
-                    40
+            other_image = CHARACTER_IDLE_IMAGES.get(data["color"])
+            if other_image is not None:
+                image_rect = other_image.get_rect(
+                    midbottom=(other_x - camera_x + 15, other_y + 40)
                 )
-            )
+                screen.blit(other_image, image_rect)
+            else:
+                other_color = CHARACTERS.get(data["color"], BLUE)
+                if isinstance(other_color, list):
+                    other_color = BLUE
+
+                pygame.draw.rect(
+                    screen,
+                    other_color,
+                    (
+                        other_x - camera_x,
+                        other_y,
+                        30,
+                        40
+                    )
+                )
 
         if editing:
             instructions = [
