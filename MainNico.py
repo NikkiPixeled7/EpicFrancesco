@@ -194,11 +194,78 @@ CHARACTER_IDLE_IMAGES["Alfredo"] = pygame.transform.scale(
     (11 * SCALE, 15 * SCALE),
 )
 
+class enemy1:
+    
+    def __init__(self, x, y):
+        self.rect = pygame.Rect(x, y, 30, 40)
+        self.vel_x = 2
+        self.vel_y = 0
+        self.on_ground = False
+        self.images = [
+            pygame.transform.scale(
+                pygame.image.load(f"Assets/enemy1_{i}.png").convert_alpha(),
+                (11 * SCALE, 15 * SCALE),
+            )
+            for i in range(3)
+        ]
+        self.frame_index = 0
+        self.frame_timer = 0
+
+    def update(self, platforms, elapsed_ms):
+        self.frame_timer += elapsed_ms
+        frames_elapsed = self.frame_timer // ANIMATION_FRAME_DURATION
+        if frames_elapsed:
+            self.frame_index = (self.frame_index + frames_elapsed) % len(self.images)
+            self.frame_timer %= ANIMATION_FRAME_DURATION
+
+        self.rect.x += self.vel_x
+        for platform in platforms:
+            if self.rect.colliderect(platform):
+                if self.vel_x > 0:
+                    self.rect.right = platform.left
+                    self.vel_x *= -1
+                elif self.vel_x < 0:
+                    self.rect.left = platform.right
+                    self.vel_x *= -1
+
+        # Vertical movement & collision
+        self.vel_y += GRAVITY
+        self.rect.y += int(self.vel_y)
+
+        for platform in platforms:
+            if self.rect.colliderect(platform):
+                if self.vel_y > 0:
+                    self.rect.bottom = platform.top
+                    self.vel_y = 0
+                elif self.vel_y < 0:
+                    self.rect.top = platform.bottom
+                    self.vel_y = 0
+
+        # Ground detection probe (1 pixel directly below feet)
+        ground_probe = pygame.Rect(self.rect.x, self.rect.bottom, self.rect.width, 1)
+        self.on_ground = any(ground_probe.colliderect(platform) for platform in platforms)
+
+        # Prevent gravity accumulation while standing on ground
+        if self.on_ground and self.vel_y > 0:
+            self.vel_y = 0
+
+    def draw(self, surface, camera_x):
+        image = self.images[self.frame_index]
+        if self.vel_x < 0:
+            image = pygame.transform.flip(image, True, False)
+        image_rect = image.get_rect(
+            midbottom=(self.rect.centerx - camera_x, self.rect.bottom)
+        )
+        surface.blit(image, image_rect)
+            
+def weight():
+    pass    
+
+
+
+
 
 # below is oop, from a player class
-
-
-
 
 # -------------------- MAP --------------------
 
@@ -216,6 +283,7 @@ MAP_WIDTH = 1600
 
 player = Player(60, 450, CHARACTERS[selected_character])
 player.idle_image = CHARACTER_IDLE_IMAGES.get(selected_character)
+enemy = enemy1(300, 390)
 camera_x = 0
 
 editing = True
@@ -308,6 +376,7 @@ while running:
         player.handle_input(keys)
         player.update(platforms)
         player.update_animation(clock.get_time())
+        enemy.update(platforms, clock.get_time())
 
         if player.rect.top > SCREEN_HEIGHT + 200:
             player.rect.topleft = (60, 450)
@@ -344,6 +413,7 @@ while running:
         pygame.draw.rect(screen, BROWN, screen_rect)
 
     player.draw(screen, camera_x)
+    enemy.draw(screen, camera_x)
 
     if editing:
         instructions = [
