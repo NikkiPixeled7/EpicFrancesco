@@ -355,7 +355,7 @@ def main_loop(): # function for start so no need to change running variable
     drag_offset_y = 0
 
     while running:
-        clock.tick(FPS)
+        elapsed_ms = clock.tick(FPS)
         mouse_x, mouse_y = pygame.mouse.get_pos()
         world_mouse_x = mouse_x + camera_x
 
@@ -435,6 +435,8 @@ def main_loop(): # function for start so no need to change running variable
 
             player.handle_input(keys)
             player.update(platforms)
+            player.update_animation(elapsed_ms)
+            enemy.update(platforms, elapsed_ms)
 
             network.send_position(
                 player.rect.x,
@@ -474,6 +476,8 @@ def main_loop(): # function for start so no need to change running variable
             pygame.draw.rect(screen, BROWN, screen_rect)
 
         player.draw(screen, camera_x)
+        if not editing:
+            enemy.draw(screen, camera_x)
 
         # ------------- OTHER PLAYERS -------------
 
