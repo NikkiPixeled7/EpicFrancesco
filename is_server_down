@@ -9,3 +9,13 @@ def connect_to_server():
         network_status = "Connected"
     else:
         network_status = "Offline (server unavailable)"
+
+def main_loop(): # function for start so no need to change running variable
+
+    global editing, selected_platform, selected_character, camera_x, network_status
+
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("Character and Customizable Map")
+
+    network_status = "Connecting..."
+    threading.Thread(target=connect_to_server, daemon=True).start()
