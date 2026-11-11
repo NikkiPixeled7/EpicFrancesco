@@ -1,0 +1,11 @@
+network = NetworkClient("ws://127.0.0.1:8765")
+network_status = "Not connected"
+
+
+def connect_to_server():
+    global network_status
+
+    if network.connect():
+        network_status = "Connected"
+    else:
+        network_status = "Offline (server unavailable)"
