@@ -1,5 +1,6 @@
 import pygame
 import tkinter as tk
+import threading
 from tkinter import ttk
 from PIL import Image, ImageTk
 from network import NetworkClient
@@ -47,6 +48,7 @@ JUMP_STRENGTH = -13
 ANIMATION_FRAME_DURATION = 100
 
 # -------------- CHARACTER OPTIONS -----------------
+# -------------------- CHARACTER OPTIONS --------------------
 
 CHARACTERS = {
     "Blue": BLUE,
@@ -330,20 +332,26 @@ platform_height = 20
 # ---------------- MULTIPLAYER ----------------
 
 network = NetworkClient(f"ws://{host_ip}:8765")
+network_status = "Not connected"
 
-connected = network.connect()
-running = True
 
-if not connected:
-    pygame.quit()
-    exit()
+def connect_to_server():
+    global network_status
+
+    if network.connect():
+        network_status = "Connected"
+    else:
+        network_status = "Offline (server unavailable)"
 
 def main_loop(): # function for start so no need to change running variable
 
-    global editing, selected_platform, selected_character, camera_x
+    global editing, selected_platform, selected_character, camera_x, network_status
 
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Character and Customizable Map")
+
+    network_status = "Connecting..."
+    threading.Thread(target=connect_to_server, daemon=True).start()
 
     running = True
     drag_offset_x = 0
@@ -520,6 +528,8 @@ def main_loop(): # function for start so no need to change running variable
                 "A/D or Left/Right: move | Space/W/Up: jump",
                 "1/2/3: change character | TAB: edit mode",
             ]
+
+        instructions.append(f"Multiplayer: {network_status}")
 
         for i, line in enumerate(instructions):
             text_surface = font.render(line, True, BLACK)
