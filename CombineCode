@@ -3,9 +3,12 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
 from network import NetworkClient
+import socket
 
 # ------------- Globals -------------
 
+hostname = socket.gethostname()
+host_ip = socket.gethostbyname(hostname)
 current_background = 0
 background_photo = None
 camera_x = 0
@@ -44,7 +47,6 @@ JUMP_STRENGTH = -13
 ANIMATION_FRAME_DURATION = 100
 
 # -------------- CHARACTER OPTIONS -----------------
-# -------------------- CHARACTER OPTIONS --------------------
 
 CHARACTERS = {
     "Blue": BLUE,
@@ -327,7 +329,7 @@ platform_height = 20
 
 # ---------------- MULTIPLAYER ----------------
 
-network = NetworkClient("ws://172.24.17.8:8765")
+network = NetworkClient(f"ws://{host_ip}:8765")
 
 connected = network.connect()
 running = True
