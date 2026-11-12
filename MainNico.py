@@ -4,9 +4,12 @@ import threading
 from tkinter import ttk
 from PIL import Image, ImageTk
 from network import NetworkClient
+import socket
 
 # ------------- Globals -------------
 
+hostname = socket.gethostname()
+host_ip = socket.gethostbyname(hostname)
 current_background = 0
 background_photo = None
 camera_x = 0
@@ -328,7 +331,7 @@ platform_height = 20
 
 # ---------------- MULTIPLAYER ----------------
 
-network = NetworkClient("ws://127.0.0.1:8765")
+network = NetworkClient(f"ws://{host_ip}:8765")
 network_status = "Not connected"
 
 
@@ -436,12 +439,14 @@ def main_loop(): # function for start so no need to change running variable
             player.handle_input(keys)
             player.update(platforms)
             player.update_animation(elapsed_ms)
-            enemy.update(platforms, elapsed_ms)
 
             network.send_position(
                 player.rect.x,
                 player.rect.y,
-                selected_character
+                selected_character,
+                player.frame_index,
+                player.facing_right,
+                player.on_ground and player.vel_x == 0,
             )
 
             if player.rect.top > SCREEN_HEIGHT + 200:
@@ -476,8 +481,6 @@ def main_loop(): # function for start so no need to change running variable
             pygame.draw.rect(screen, BROWN, screen_rect)
 
         player.draw(screen, camera_x)
-        if not editing:
-            enemy.draw(screen, camera_x)
 
         # ------------- OTHER PLAYERS -------------
 
@@ -490,9 +493,20 @@ def main_loop(): # function for start so no need to change running variable
 
             other_x = data["x"]
             other_y = data["y"]
+            character_frames = CHARACTERS.get(data["color"])
+            is_idle = data.get("is_idle", True)
 
-            other_image = CHARACTER_IDLE_IMAGES.get(data["color"])
+            if is_idle:
+                other_image = CHARACTER_IDLE_IMAGES.get(data["color"])
+            elif isinstance(character_frames, list) and character_frames:
+                frame_index = data.get("frame_index", 0) % len(character_frames)
+                other_image = character_frames[frame_index]
+            else:
+                other_image = None
+
             if other_image is not None:
+                if not data.get("facing_right", True):
+                    other_image = pygame.transform.flip(other_image, True, False)
                 image_rect = other_image.get_rect(
                     midbottom=(other_x - camera_x + 15, other_y + 40)
                 )
