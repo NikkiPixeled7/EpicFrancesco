@@ -19,4 +19,6 @@ def encode_ip(ip):
 
     return format(encoded_number, "08X")
 
+def decode_ip(encoded_ip):
+    
 # still have to decode, then implement into the main code
