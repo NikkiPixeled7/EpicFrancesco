@@ -30,6 +30,7 @@ def center_window(window, width, height):
 SCREEN_WIDTH = 1000
 SCREEN_HEIGHT = 600
 FPS = 60
+REMOTE_SMOOTHING_MS = 100
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Character and Customizable Map")
@@ -98,35 +99,52 @@ class Player:
             self.vel_y = JUMP_STRENGTH
             self.on_ground = False
 
-    def update(self, platforms):
+    def update(self, platforms, player_colliders=()):
+        for other_rect, push_right in player_colliders:
+            if self.rect.colliderect(other_rect):
+                if self.rect.centerx < other_rect.centerx:
+                    self.rect.right = other_rect.left
+                elif self.rect.centerx > other_rect.centerx:
+                    self.rect.left = other_rect.right
+                elif push_right:
+                    self.rect.left = other_rect.right
+                else:
+                    self.rect.right = other_rect.left
+
         self.rect.x += self.vel_x
 
-        for platform in platforms:
-            if self.rect.colliderect(platform):
+        obstacles = tuple(platforms) + tuple(
+            other_rect for other_rect, _ in player_colliders
+        )
+
+        for obstacle in obstacles:
+            if self.rect.colliderect(obstacle):
                 if self.vel_x > 0:
-                    self.rect.right = platform.left
+                    self.rect.right = obstacle.left
                 elif self.vel_x < 0:
-                    self.rect.left = platform.right
+                    self.rect.left = obstacle.right
 
         # 2. Vertical movement & collision
         self.vel_y += GRAVITY
         self.rect.y += int(self.vel_y)
         self.on_ground = False
 
-        for platform in platforms:
-            if self.rect.colliderect(platform):
+        for obstacle in obstacles:
+            if self.rect.colliderect(obstacle):
                 if self.vel_y > 0:
-                    self.rect.bottom = platform.top
+                    self.rect.bottom = obstacle.top
                     self.vel_y = 0
                     self.on_ground = True
 
                 elif self.vel_y < 0:
-                    self.rect.top = platform.bottom
+                    self.rect.top = obstacle.bottom
                     self.vel_y = 0
 
         # 3. Ground detection probe (1 pixel directly below feet)
         ground_probe = pygame.Rect(self.rect.x, self.rect.bottom, self.rect.width, 1)
-        self.on_ground = any(ground_probe.colliderect(platform) for platform in platforms)
+        self.on_ground = any(
+            ground_probe.colliderect(obstacle) for obstacle in obstacles
+        )
 
         # 4. Prevent gravity accumulation while standing on ground
         if self.on_ground and self.vel_y > 0:
@@ -356,6 +374,7 @@ def main_loop(): # function for start so no need to change running variable
     running = True
     drag_offset_x = 0
     drag_offset_y = 0
+    remote_positions = {}
 
     while running:
         elapsed_ms = clock.tick(FPS)
@@ -431,13 +450,23 @@ def main_loop(): # function for start so no need to change running variable
         if not running:
             break
 
+        my_id, other_players = network.get_players()
+
         # ------------- UPDATE ------------
 
         if not editing:
             keys = pygame.key.get_pressed()
 
             player.handle_input(keys)
-            player.update(platforms)
+            player_colliders = [
+                (
+                    pygame.Rect(round(x), round(y), 30, 40),
+                    my_id > player_id,
+                )
+                for player_id, (x, y) in remote_positions.items()
+                if my_id is not None
+            ]
+            player.update(platforms, player_colliders)
             player.update_animation(elapsed_ms)
 
             network.send_position(
@@ -484,15 +513,28 @@ def main_loop(): # function for start so no need to change running variable
 
         # ------------- OTHER PLAYERS -------------
 
-        my_id, other_players = network.get_players()
+        active_remote_ids = set()
 
         for player_id, data in other_players.items():
 
             if player_id == my_id:
                 continue
 
-            other_x = data["x"]
-            other_y = data["y"]
+            active_remote_ids.add(player_id)
+            target_x = data["x"]
+            target_y = data["y"]
+            if player_id not in remote_positions:
+                remote_positions[player_id] = (target_x, target_y)
+            else:
+                current_x, current_y = remote_positions[player_id]
+                smoothing = min(1.0, elapsed_ms / REMOTE_SMOOTHING_MS)
+                remote_positions[player_id] = (
+                    current_x + (target_x - current_x) * smoothing,
+                    current_y + (target_y - current_y) * smoothing,
+                )
+            smoothed_x, smoothed_y = remote_positions[player_id]
+            other_x = round(smoothed_x)
+            other_y = round(smoothed_y)
             character_frames = CHARACTERS.get(data["color"])
             is_idle = data.get("is_idle", True)
 
@@ -526,6 +568,10 @@ def main_loop(): # function for start so no need to change running variable
                         40
                     )
                 )
+
+        for player_id in list(remote_positions):
+            if player_id not in active_remote_ids:
+                del remote_positions[player_id]
 
         if editing:
             instructions = [
