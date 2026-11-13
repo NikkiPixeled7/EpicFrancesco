@@ -32,7 +32,7 @@ def decode_ip(code):
     encoded_number = int(code, 16)
 
     D = daily_key()
-    key = (D * 8) ^ D ^ D
+    key = (D * 5) ^ (D + 17) ^ (D * 3)
 
     if key % 7 == 0:
             ip_number = encoded_number ^ (key * 7)
