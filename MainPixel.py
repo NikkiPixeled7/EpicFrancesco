@@ -1,10 +1,9 @@
-import pygame
+import pygame, socket, ipaddress
 import tkinter as tk
 import threading
-from tkinter import ttk
 from PIL import Image, ImageTk
 from network import NetworkClient
-import socket
+from datetime import datetime, timezone
 
 # ------------- Globals -------------
 
@@ -13,6 +12,50 @@ host_ip = socket.gethostbyname(hostname)
 current_background = 0
 background_photo = None
 camera_x = 0
+password_try = None
+
+def daily_key():    
+    today = datetime.now(timezone.utc).date()
+    return today.toordinal()
+
+def encode_ip(ip):
+    ip_number = int(ipaddress.IPv4Address(ip))
+
+    D = daily_key()
+    key = (D * 5) ^ (D + 17) ^ (D * 3)
+
+    if key % 7 == 0:
+        encoded_number = ip_number ^ (key * 7)
+    elif key % 5 == 0:
+        encoded_number = ip_number ^ (key * 5)
+    elif key % 3 == 0:
+        encoded_number = ip_number ^ (key * 3)
+    elif key % 2 == 0:
+        encoded_number = ip_number ^ (key * 2)
+    else:
+        encoded_number = ip_number ^ key
+
+    return format(encoded_number, "08X")
+
+def decode_ip(code):
+
+    encoded_number = int(code, 16)
+
+    D = daily_key()
+    key = (D * 5) ^ (D + 17) ^ (D * 3)
+
+    if key % 7 == 0:
+        ip_number = encoded_number ^ (key * 7)
+    elif key % 5 == 0:
+        ip_number = encoded_number ^ (key * 5)
+    elif key % 3 == 0:
+        ip_number = encoded_number ^ (key * 3)
+    elif key % 2 == 0:
+        ip_number = encoded_number ^ (key * 2)
+    else:
+        ip_number = encoded_number ^ key
+
+    return str(ipaddress.IPv4Address(ip_number))
 
 pygame.init()
 
@@ -33,6 +76,7 @@ FPS = 60
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Character and Customizable Map")
+
 clock = pygame.time.Clock()
 font = pygame.font.Font(None, 28)
 
@@ -331,7 +375,7 @@ platform_height = 20
 
 # ---------------- MULTIPLAYER ----------------
 
-network = NetworkClient(f"ws://{host_ip}:8765")
+network = None
 network_status = "Not connected"
 
 
@@ -350,15 +394,15 @@ def main_loop(): # function for start so no need to change running variable
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Character and Customizable Map")
 
-    network_status = "Connecting..."
-    threading.Thread(target=connect_to_server, daemon=True).start()
+
+    network_status = "Connected"
 
     running = True
     drag_offset_x = 0
     drag_offset_y = 0
 
     while running:
-        clock.tick(FPS)
+        elapsed_ms = clock.tick(FPS)
         mouse_x, mouse_y = pygame.mouse.get_pos()
         world_mouse_x = mouse_x + camera_x
 
@@ -438,6 +482,7 @@ def main_loop(): # function for start so no need to change running variable
 
             player.handle_input(keys)
             player.update(platforms)
+            player.update_animation(elapsed_ms)
 
             network.send_position(
                 player.rect.x,
@@ -518,6 +563,7 @@ def main_loop(): # function for start so no need to change running variable
                 "Left-click and drag a platform to move it",
                 "P: add platform | Delete: remove selected platform",
                 "TAB: play mode",
+                "Code: " + encode_ip(host_ip),
             ]
             if selected_platform in platforms:
                 platforms.remove(selected_platform)
@@ -541,6 +587,23 @@ def main_loop(): # function for start so no need to change running variable
     pygame.quit()
 
 #----------------- TKINTER MAIN GUI ------------------
+
+def connect_to_server(ip):
+    global network, network_status
+
+    try:
+        new_network = NetworkClient(f"ws://{ip}:8765")
+
+        if new_network.connect():
+            network = new_network
+            network_status = "Connected"
+            return True
+
+        new_network.close()
+        return False
+
+    except Exception:
+        return False
 
 def main_menu_loop():
 
@@ -607,16 +670,110 @@ def main_menu_loop():
 
     animate_background()
 
-    # --------- Gui Setup ---------
+    
+    # --------- GUI SETUP ---------
 
     play_image = Image.open("Assets/PlayButton.png")
-    play_image_resized = play_image.resize((100, 75), Image.Resampling.LANCZOS)
+    play_image_resized = play_image.resize(
+        (100, 75),
+        Image.Resampling.LANCZOS
+    )
     play_photo_resized = ImageTk.PhotoImage(play_image_resized)
 
-    start_button = tk.Button(window, image=play_photo_resized, command=lambda: [window.destroy(), main_loop()], borderwidth=0, highlightthickness=0, relief="flat")
+    # --------- CONNECTION HANDLING ---------
+    
+    def attempt_connection():
+
+        nonlocal connecting
+
+        if connecting:
+            return
+
+        entered_code = code_entry.get().strip()
+
+        #HOST: No code entered
+        if entered_code == "":
+            target_ip = host_ip
+
+        #JOIN: Code entered
+        else:
+            try:
+                target_ip = decode_ip(entered_code)
+
+            except (ValueError, ipaddress.AddressValueError):
+                status_label.config(
+                    text="INVALID CODE",
+                    fg="red"
+                )
+                return
+
+        connecting = True
+
+        status_label.config(
+            text="Connecting...",
+            fg="blue"
+        )
+
+        def connection_thread():
+
+            success = connect_to_server(target_ip)
+
+            if success:
+                window.after(
+                    0,
+                    lambda: [window.destroy(), main_loop()]
+                )
+
+            else:
+                def connection_failed():
+                    nonlocal connecting
+                    connecting = False
+
+                    status_label.config(
+                        text="INVALID CODE - Try again or leave blank to host",
+                        fg="red"
+                    )
+
+                window.after(0, connection_failed)
+
+        threading.Thread(
+            target=connection_thread,
+            daemon=True
+        ).start()
+
+        # --------- PLAY BUTTON ---------
+
+    start_button = tk.Button(
+        window,
+        image=play_photo_resized,
+        command=attempt_connection,
+        borderwidth=0,
+        highlightthickness=0,
+        relief="flat"
+    )
+
     start_button.pack(pady=5)
 
-    window.mainloop()   
+    code_entry = tk.Entry(
+        window,
+        width=20,
+        font=("Arial", 14)
+    )
+    code_entry.pack(pady=10)
+
+    status_label = tk.Label(
+        window,
+        text="Enter code to join or leave blank to host",
+        font=("Arial", 11),
+        fg="white",
+        bg="black"
+    )
+    status_label.pack(pady=5)
+
+    connecting = False
+
+    window.mainloop()
+
 
 main_menu_loop()
 pygame.quit()
