@@ -54,7 +54,7 @@ async def broadcast():
 
     while True:
 
-        await asyncio.sleep(1 / 20)
+        await asyncio.sleep(1 / 60)
 
         message = json.dumps({
             "type": "state",
