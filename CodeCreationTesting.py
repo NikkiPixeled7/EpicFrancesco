@@ -11,9 +11,19 @@ def daily_key():
 def encode_ip(ip):
     ip_number = int(ipaddress.IPv4Address(ip))
 
-    key = daily_key()
+    D = daily_key()
+    key = (D * 8) ^ D ^ D
 
-    encoded_number = ip_number ^ key
+    if key % 7 == 0:
+        encoded_number = ip_number ^ (key * 7)
+    elif key % 5 == 0:
+        encoded_number = ip_number ^ (key * 5)
+    elif key % 3 == 0:
+        encoded_number = ip_number ^ (key * 3)
+    elif key % 2 == 0:
+        encoded_number = ip_number ^ (key * 2)
+    else:
+        encoded_number = ip_number ^ key
 
     return format(encoded_number, "08X")
 
@@ -21,18 +31,28 @@ def decode_ip(code):
 
     encoded_number = int(code, 16)
 
-    key = daily_key()
+    D = daily_key()
+    key = (D * 8) ^ D ^ D
 
-    ip_number = encoded_number ^ key
+    if key % 7 == 0:
+            ip_number = encoded_number ^ (key * 7)
+    elif key % 5 == 0:
+        ip_number = encoded_number ^ (key * 5)
+    elif key % 3 == 0:
+        ip_number = encoded_number ^ (key * 3)
+    elif key % 2 == 0:
+        ip_number = encoded_number ^ (key * 2)
+    else:
+        ip_number = encoded_number ^ key
 
     return str(ipaddress.IPv4Address(ip_number))
 
-# print(host_ip)
+print(host_ip)
 
-# encoded_ip = encode_ip(host_ip)
+encoded_ip = encode_ip(host_ip)
 
-# print(encoded_ip)
+print(encoded_ip)
 
-# decoded_ip = decode_ip(encoded_ip)
+decoded_ip = decode_ip(encoded_ip)
 
-# print(decoded_ip)
+print(decoded_ip)
