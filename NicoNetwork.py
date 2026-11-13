@@ -92,7 +92,9 @@ class NetworkClient:
                     print("Send error:", error)
                 break
 
-    def send_position(self, x, y, color, frame_index, facing_right, is_idle):
+    def send_position(
+        self, x, y, color, frame_index, facing_right, is_idle, grabbing=None
+    ):
 
         data = {
             "x": x,
@@ -101,6 +103,7 @@ class NetworkClient:
             "frame_index": frame_index,
             "facing_right": facing_right,
             "is_idle": is_idle,
+            "grabbing": grabbing,
         }
 
         try:
