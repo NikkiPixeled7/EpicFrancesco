@@ -47,6 +47,7 @@ MOVE_SPEED = 5
 GRAVITY = 0.7
 JUMP_STRENGTH = -13
 ANIMATION_FRAME_DURATION = 100
+GRAPPLE_RANGE = 60
 
 # -------------- CHARACTER OPTIONS -----------------
 # -------------------- CHARACTER OPTIONS --------------------
@@ -375,6 +376,8 @@ def main_loop(): # function for start so no need to change running variable
     drag_offset_x = 0
     drag_offset_y = 0
     remote_positions = {}
+    grapple_target = None
+    is_held = False
 
     while running:
         elapsed_ms = clock.tick(FPS)
@@ -397,6 +400,50 @@ def main_loop(): # function for start so no need to change running variable
                     selected_platform = None
                     player.vel_x = 0
                     player.vel_y = 0
+                    if editing:
+                        grapple_target = None
+                        network.send_position(
+                            player.rect.x,
+                            player.rect.y,
+                            selected_character,
+                            player.frame_index,
+                            player.facing_right,
+                            player.on_ground and player.vel_x == 0,
+                            None,
+                        )
+
+                if not editing and event.key == pygame.K_e:
+                    if grapple_target is not None:
+                        grapple_target = None
+                    else:
+                        current_id, current_players = network.get_players()
+                        already_held = any(
+                            data.get("grabbing") == current_id
+                            for player_id, data in current_players.items()
+                            if player_id != current_id
+                        )
+                        candidates = []
+
+                        if current_id is not None and not already_held:
+                            for other_id, (other_x, other_y) in remote_positions.items():
+                                if other_id not in current_players:
+                                    continue
+                                already_grabbed = any(
+                                    data.get("grabbing") == other_id
+                                    for player_id, data in current_players.items()
+                                    if player_id != current_id
+                                )
+                                if already_grabbed:
+                                    continue
+
+                                dx = player.rect.centerx - (other_x + 15)
+                                dy = player.rect.centery - (other_y + 20)
+                                distance_squared = dx * dx + dy * dy
+                                if distance_squared <= GRAPPLE_RANGE * GRAPPLE_RANGE:
+                                    candidates.append((distance_squared, other_id))
+
+                        if candidates:
+                            grapple_target = min(candidates)[1]
 
                 if editing and event.key == pygame.K_p:
                     platforms.append(
@@ -455,18 +502,38 @@ def main_loop(): # function for start so no need to change running variable
         # ------------- UPDATE ------------
 
         if not editing:
+            is_held = my_id is not None and any(
+                data.get("grabbing") == my_id
+                for player_id, data in other_players.items()
+                if player_id != my_id
+            )
+
+            if grapple_target is not None:
+                target_position = remote_positions.get(grapple_target)
+                if grapple_target not in other_players or target_position is None:
+                    grapple_target = None
+                else:
+                    dx = player.rect.centerx - (target_position[0] + 15)
+                    dy = player.rect.centery - (target_position[1] + 20)
+                    if dx * dx + dy * dy > GRAPPLE_RANGE * GRAPPLE_RANGE:
+                        grapple_target = None
+
             keys = pygame.key.get_pressed()
 
-            player.handle_input(keys)
-            player_colliders = [
-                (
-                    pygame.Rect(round(x), round(y), 30, 40),
-                    my_id > player_id,
-                )
-                for player_id, (x, y) in remote_positions.items()
-                if my_id is not None
-            ]
-            player.update(platforms, player_colliders)
+            if is_held:
+                player.vel_x = 0
+                player.vel_y = 0
+            else:
+                player.handle_input(keys)
+                player_colliders = [
+                    (
+                        pygame.Rect(round(x), round(y), 30, 40),
+                        my_id > player_id,
+                    )
+                    for player_id, (x, y) in remote_positions.items()
+                    if my_id is not None
+                ]
+                player.update(platforms, player_colliders)
             player.update_animation(elapsed_ms)
 
             network.send_position(
@@ -476,6 +543,7 @@ def main_loop(): # function for start so no need to change running variable
                 player.frame_index,
                 player.facing_right,
                 player.on_ground and player.vel_x == 0,
+                grapple_target,
             )
 
             if player.rect.top > SCREEN_HEIGHT + 200:
@@ -569,6 +637,38 @@ def main_loop(): # function for start so no need to change running variable
                     )
                 )
 
+        for holder_id, data in other_players.items():
+            target_id = data.get("grabbing")
+            if target_id is None:
+                continue
+
+            holder_position = (
+                (player.rect.x, player.rect.y)
+                if holder_id == my_id
+                else remote_positions.get(holder_id)
+            )
+            target_position = (
+                (player.rect.x, player.rect.y)
+                if target_id == my_id
+                else remote_positions.get(target_id)
+            )
+            if holder_position is None or target_position is None:
+                continue
+
+            pygame.draw.line(
+                screen,
+                (190, 45, 45),
+                (
+                    round(holder_position[0]) - camera_x + 15,
+                    round(holder_position[1]) + 20,
+                ),
+                (
+                    round(target_position[0]) - camera_x + 15,
+                    round(target_position[1]) + 20,
+                ),
+                3,
+            )
+
         for player_id in list(remote_positions):
             if player_id not in active_remote_ids:
                 del remote_positions[player_id]
@@ -588,7 +688,10 @@ def main_loop(): # function for start so no need to change running variable
                 "PLAY MODE",
                 "A/D or Left/Right: move | Space/W/Up: jump",
                 "1/2/3: change character | TAB: edit mode",
+                "E: grapple/release a nearby player",
             ]
+            if is_held:
+                instructions.append("Grappled: you cannot move")
 
         instructions.append(f"Multiplayer: {network_status}")
 
