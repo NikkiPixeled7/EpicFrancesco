@@ -1,12 +1,16 @@
-import pygame, socket, ipaddress, subprocess, sys, os, time
+import pygame, socket, ipaddress, subprocess, sys, os, time, sqlite3
 import tkinter as tk
 import threading
 from PIL import Image, ImageTk
 from network import NetworkClient
 from datetime import datetime, timezone
 
-# ------------- Globals -------------
+# ------------- Globals/Setup -------------
 
+mx = 0
+my = 0
+connection = sqlite3.connect("map.db")
+cursor = connection.cursor()
 server_process = None
 hostname = socket.gethostname()
 host_ip = socket.gethostbyname(hostname)
@@ -69,6 +73,24 @@ def center_window(window, width, height):
     y = (screen_height - height) // 2 - 35
     window.geometry(f"{width}x{height}+{x}+{y}")
 
+# ---------------- DATABASE ----------------
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS platforms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    x INTEGER,
+    y INTEGER,
+    width INTEGER,
+    height INTEGER
+    )
+""")
+
+connection.commit()
+
+
+
+connection.close()
+
 # -------------------- SETTINGS --------------------
 
 SCREEN_WIDTH = 1000
@@ -92,8 +114,20 @@ GRAVITY = 0.7
 JUMP_STRENGTH = -13
 ANIMATION_FRAME_DURATION = 100
 
+# --------------- Visible Mouse ---------------
+
+pygame.mouse.set_visible(False)
+
+for event in pygame.event.get():
+    if event.type == pygame.MOUSEMOTION:
+                current_pos = pygame.mouse.get_pos()
+
+mx, my = pygame.mouse.get_pos()
+
+pygame.draw.line(screen, (168, 101, 201), (mx - 10, my), (mx + 10, my), 1)
+pygame.draw.line(screen, (168, 101, 201), (mx, my - 10), (mx, my + 10), 1)
+
 # -------------- CHARACTER OPTIONS -----------------
-# -------------------- CHARACTER OPTIONS --------------------
 
 CHARACTERS = {
     "Blue": BLUE,
@@ -405,6 +439,9 @@ def main_loop(): # function for start so no need to change running variable
     while running:
         elapsed_ms = clock.tick(FPS)
         mouse_x, mouse_y = pygame.mouse.get_pos()
+        mx, my = mouse_x, mouse_y
+        coords = font.render(f"{mx},{my}", True, (255, 255, 255))
+        screen.blit(coords, (10, SCREEN_HEIGHT - 25))
         world_mouse_x = mouse_x + camera_x
 
         # -------------- EVENTS --------------
@@ -488,7 +525,7 @@ def main_loop(): # function for start so no need to change running variable
             network.send_position(
                 player.rect.x,
                 player.rect.y,
-                selected_character
+                selected_character,
             )
 
             if player.rect.top > SCREEN_HEIGHT + 200:
@@ -582,12 +619,18 @@ def main_loop(): # function for start so no need to change running variable
             text_surface = font.render(line, True, BLACK)
             screen.blit(text_surface, (15, 15 + i * 28))
 
+        # custom cursor
+        pygame.draw.line(screen, (168, 101, 201), (mx - 10, my), (mx + 10, my), 1)
+        pygame.draw.line(screen, (168, 101, 201), (mx, my - 10), (mx, my + 10), 1)
+
+        # mouse coords
+        coords = font.render(f"{mx}, {my}", True, WHITE)
+        screen.blit(coords, (10, SCREEN_HEIGHT - 25))
+
         pygame.display.flip()
 
     network.close()
     pygame.quit()
-
-#----------------- TKINTER MAIN GUI ------------------
 
 def connect_to_server(ip):
     global network, network_status
@@ -606,7 +649,11 @@ def connect_to_server(ip):
     except Exception:
         return False
 
+#----------------- TKINTER MAIN GUI ------------------
+
 def main_menu_loop():
+
+    global mx, my
 
     # ---------- Window Setup ----------
 
