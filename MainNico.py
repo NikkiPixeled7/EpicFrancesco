@@ -62,6 +62,7 @@ CHARACTERS = {
 selected_character = "Blue"
 selected_character = "Francesco"
 CHARACTER_IDLE_IMAGES = {}
+CHARACTER_GRAB_IMAGES = {}
 
 
 
@@ -80,6 +81,7 @@ class Player:
         self.spawn_x = 15
         self.spawn_y = 250
         self.idle_image = None
+        self.grab_image = None
 
     def handle_input(self, keys):
         self.vel_x = 0
@@ -169,8 +171,18 @@ class Player:
             self.frame_index = (self.frame_index + frames_elapsed) % walk_frame_count
             self.frame_timer %= ANIMATION_FRAME_DURATION
 
-    def draw(self, surface, camera_x):
+    def draw(self, surface, camera_x, is_grabbing=False):
         x = self.rect.x - camera_x
+
+        if is_grabbing and self.grab_image is not None:
+            image = self.grab_image
+            if not self.facing_right:
+                image = pygame.transform.flip(image, True, False)
+            frame_rect = image.get_rect(
+                midbottom=(x + self.rect.width // 2, self.rect.bottom)
+            )
+            surface.blit(image, frame_rect)
+            return
 
         if self.idle_image is not None and self.on_ground and self.vel_x == 0:
             image = self.idle_image
@@ -219,6 +231,10 @@ CHARACTER_IDLE_IMAGES["Francesco"] = pygame.transform.scale(
     pygame.image.load("Assets/francesco_idle.png").convert_alpha(),
     (11 * SCALE, 15 * SCALE),
 )
+CHARACTER_GRAB_IMAGES["Francesco"] = pygame.transform.scale(
+    pygame.image.load("Assets/francesco_grab.png").convert_alpha(),
+    (11 * SCALE, 15 * SCALE),
+)
 
 SCALE = 5
 giuseppe = [
@@ -233,6 +249,10 @@ CHARACTER_IDLE_IMAGES["Giuseppe"] = pygame.transform.scale(
     pygame.image.load("Assets/giuseppe_idle.png").convert_alpha(),
     (11 * SCALE, 15 * SCALE),
 )
+CHARACTER_GRAB_IMAGES["Giuseppe"] = pygame.transform.scale(
+    pygame.image.load("Assets/guiseppe_grab.png").convert_alpha(),
+    (11 * SCALE, 15 * SCALE),
+)
 
 SCALE = 5
 alfredo = [
@@ -245,6 +265,10 @@ alfredo.append(pygame.transform.scale(pygame.image.load("Assets/alfredo_jump.png
 CHARACTERS["Alfredo"] = alfredo
 CHARACTER_IDLE_IMAGES["Alfredo"] = pygame.transform.scale(
     pygame.image.load("Assets/alfredo_idle.png").convert_alpha(),
+    (11 * SCALE, 15 * SCALE),
+)
+CHARACTER_GRAB_IMAGES["Alfredo"] = pygame.transform.scale(
+    pygame.image.load("Assets/Alfredo_grab.png").convert_alpha(),
     (11 * SCALE, 15 * SCALE),
 )
 
@@ -339,6 +363,7 @@ MAP_WIDTH = 1600
 
 player = Player(60, 450, CHARACTERS[selected_character])
 player.idle_image = CHARACTER_IDLE_IMAGES.get(selected_character)
+player.grab_image = CHARACTER_GRAB_IMAGES.get(selected_character)
 enemy = enemy1(300, 390)
 camera_x = 0
 
@@ -477,6 +502,9 @@ def main_loop(): # function for start so no need to change running variable
                         player.idle_image = CHARACTER_IDLE_IMAGES.get(
                             selected_character
                         )
+                        player.grab_image = CHARACTER_GRAB_IMAGES.get(
+                            selected_character
+                        )
 
             if editing and event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
@@ -577,7 +605,7 @@ def main_loop(): # function for start so no need to change running variable
 
             pygame.draw.rect(screen, BROWN, screen_rect)
 
-        player.draw(screen, camera_x)
+        player.draw(screen, camera_x, grapple_target is not None)
 
         # ------------- OTHER PLAYERS -------------
 
@@ -606,13 +634,15 @@ def main_loop(): # function for start so no need to change running variable
             character_frames = CHARACTERS.get(data["color"])
             is_idle = data.get("is_idle", True)
 
-            if is_idle:
-                other_image = CHARACTER_IDLE_IMAGES.get(data["color"])
-            elif isinstance(character_frames, list) and character_frames:
-                frame_index = data.get("frame_index", 0) % len(character_frames)
-                other_image = character_frames[frame_index]
-            else:
-                other_image = None
+            other_image = None
+            if data.get("grabbing") is not None:
+                other_image = CHARACTER_GRAB_IMAGES.get(data["color"])
+            if other_image is None:
+                if is_idle:
+                    other_image = CHARACTER_IDLE_IMAGES.get(data["color"])
+                elif isinstance(character_frames, list) and character_frames:
+                    frame_index = data.get("frame_index", 0) % len(character_frames)
+                    other_image = character_frames[frame_index]
 
             if other_image is not None:
                 if not data.get("facing_right", True):
