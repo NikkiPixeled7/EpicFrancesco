@@ -1,4 +1,4 @@
-import pygame, socket, ipaddress
+import pygame, socket, ipaddress, subprocess, sys, os, time
 import tkinter as tk
 import threading
 from PIL import Image, ImageTk
@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 # ------------- Globals -------------
 
+server_process = None
 hostname = socket.gethostname()
 host_ip = socket.gethostbyname(hostname)
 current_background = 0
@@ -691,11 +692,11 @@ def main_menu_loop():
 
         entered_code = code_entry.get().strip()
 
-        #HOST: No code entered
+        #HOST: no code entered
         if entered_code == "":
             target_ip = host_ip
 
-        #JOIN: Code entered
+        #JOIN: code entered
         else:
             try:
                 target_ip = decode_ip(entered_code)
@@ -716,24 +717,28 @@ def main_menu_loop():
 
         def connection_thread():
 
+            global server_process
+
+            if entered_code == "":
+                try:
+                    server_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.py")
+                    server_process = subprocess.Popen([sys.executable, server_path])
+
+                    time.sleep(1)
+
+                except Exception as e:
+                    print("Could not start server:", e)
+                    window.after(0, lambda: status_label.config(text="Failed to start server", fg="red"))
+                    return
             success = connect_to_server(target_ip)
 
             if success:
-                window.after(
-                    0,
-                    lambda: [window.destroy(), main_loop()]
-                )
-
+                window.after(0, lambda: [window.destroy(), main_loop()])
             else:
                 def connection_failed():
                     nonlocal connecting
                     connecting = False
-
-                    status_label.config(
-                        text="INVALID CODE - Try again or leave blank to host",
-                        fg="red"
-                    )
-
+                    status_label.config(text="CONNECTION FAILED - Try again", fg="red")
                 window.after(0, connection_failed)
 
         threading.Thread(
