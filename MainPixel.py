@@ -1,66 +1,18 @@
-import pygame, socket, ipaddress, subprocess, sys, os, time, sqlite3
+import pygame
 import tkinter as tk
 import threading
+from tkinter import ttk
 from PIL import Image, ImageTk
 from network import NetworkClient
-from datetime import datetime, timezone
+import socket
 
-# ------------- Globals/Setup -------------
+# ------------- Globals -------------
 
-mx = 0
-my = 0
-connection = sqlite3.connect("map.db")
-cursor = connection.cursor()
-server_process = None
 hostname = socket.gethostname()
 host_ip = socket.gethostbyname(hostname)
 current_background = 0
 background_photo = None
 camera_x = 0
-password_try = None
-
-def daily_key():    
-    today = datetime.now(timezone.utc).date()
-    return today.toordinal()
-
-def encode_ip(ip):
-    ip_number = int(ipaddress.IPv4Address(ip))
-
-    D = daily_key()
-    key = (D * 5) ^ (D + 17) ^ (D * 3)
-
-    if key % 7 == 0:
-        encoded_number = ip_number ^ (key * 7)
-    elif key % 5 == 0:
-        encoded_number = ip_number ^ (key * 5)
-    elif key % 3 == 0:
-        encoded_number = ip_number ^ (key * 3)
-    elif key % 2 == 0:
-        encoded_number = ip_number ^ (key * 2)
-    else:
-        encoded_number = ip_number ^ key
-
-    return format(encoded_number, "08X")
-
-def decode_ip(code):
-
-    encoded_number = int(code, 16)
-
-    D = daily_key()
-    key = (D * 5) ^ (D + 17) ^ (D * 3)
-
-    if key % 7 == 0:
-        ip_number = encoded_number ^ (key * 7)
-    elif key % 5 == 0:
-        ip_number = encoded_number ^ (key * 5)
-    elif key % 3 == 0:
-        ip_number = encoded_number ^ (key * 3)
-    elif key % 2 == 0:
-        ip_number = encoded_number ^ (key * 2)
-    else:
-        ip_number = encoded_number ^ key
-
-    return str(ipaddress.IPv4Address(ip_number))
 
 pygame.init()
 
@@ -73,33 +25,15 @@ def center_window(window, width, height):
     y = (screen_height - height) // 2 - 35
     window.geometry(f"{width}x{height}+{x}+{y}")
 
-# ---------------- DATABASE ----------------
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS platforms (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    x INTEGER,
-    y INTEGER,
-    width INTEGER,
-    height INTEGER
-    )
-""")
-
-connection.commit()
-
-
-
-connection.close()
-
 # -------------------- SETTINGS --------------------
 
 SCREEN_WIDTH = 1000
 SCREEN_HEIGHT = 600
 FPS = 60
+REMOTE_SMOOTHING_MS = 100
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Character and Customizable Map")
-
 clock = pygame.time.Clock()
 font = pygame.font.Font(None, 28)
 
@@ -113,21 +47,10 @@ MOVE_SPEED = 5
 GRAVITY = 0.7
 JUMP_STRENGTH = -13
 ANIMATION_FRAME_DURATION = 100
-
-# --------------- Visible Mouse ---------------
-
-pygame.mouse.set_visible(False)
-
-for event in pygame.event.get():
-    if event.type == pygame.MOUSEMOTION:
-                current_pos = pygame.mouse.get_pos()
-
-mx, my = pygame.mouse.get_pos()
-
-pygame.draw.line(screen, (168, 101, 201), (mx - 10, my), (mx + 10, my), 1)
-pygame.draw.line(screen, (168, 101, 201), (mx, my - 10), (mx, my + 10), 1)
+GRAPPLE_RANGE = 60
 
 # -------------- CHARACTER OPTIONS -----------------
+# -------------------- CHARACTER OPTIONS --------------------
 
 CHARACTERS = {
     "Blue": BLUE,
@@ -139,6 +62,7 @@ CHARACTERS = {
 selected_character = "Blue"
 selected_character = "Francesco"
 CHARACTER_IDLE_IMAGES = {}
+CHARACTER_GRAB_IMAGES = {}
 
 
 
@@ -157,6 +81,7 @@ class Player:
         self.spawn_x = 15
         self.spawn_y = 250
         self.idle_image = None
+        self.grab_image = None
 
     def handle_input(self, keys):
         self.vel_x = 0
@@ -177,35 +102,52 @@ class Player:
             self.vel_y = JUMP_STRENGTH
             self.on_ground = False
 
-    def update(self, platforms):
+    def update(self, platforms, player_colliders=()):
+        for other_rect, push_right in player_colliders:
+            if self.rect.colliderect(other_rect):
+                if self.rect.centerx < other_rect.centerx:
+                    self.rect.right = other_rect.left
+                elif self.rect.centerx > other_rect.centerx:
+                    self.rect.left = other_rect.right
+                elif push_right:
+                    self.rect.left = other_rect.right
+                else:
+                    self.rect.right = other_rect.left
+
         self.rect.x += self.vel_x
 
-        for platform in platforms:
-            if self.rect.colliderect(platform):
+        obstacles = tuple(platforms) + tuple(
+            other_rect for other_rect, _ in player_colliders
+        )
+
+        for obstacle in obstacles:
+            if self.rect.colliderect(obstacle):
                 if self.vel_x > 0:
-                    self.rect.right = platform.left
+                    self.rect.right = obstacle.left
                 elif self.vel_x < 0:
-                    self.rect.left = platform.right
+                    self.rect.left = obstacle.right
 
         # 2. Vertical movement & collision
         self.vel_y += GRAVITY
         self.rect.y += int(self.vel_y)
         self.on_ground = False
 
-        for platform in platforms:
-            if self.rect.colliderect(platform):
+        for obstacle in obstacles:
+            if self.rect.colliderect(obstacle):
                 if self.vel_y > 0:
-                    self.rect.bottom = platform.top
+                    self.rect.bottom = obstacle.top
                     self.vel_y = 0
                     self.on_ground = True
 
                 elif self.vel_y < 0:
-                    self.rect.top = platform.bottom
+                    self.rect.top = obstacle.bottom
                     self.vel_y = 0
 
         # 3. Ground detection probe (1 pixel directly below feet)
         ground_probe = pygame.Rect(self.rect.x, self.rect.bottom, self.rect.width, 1)
-        self.on_ground = any(ground_probe.colliderect(platform) for platform in platforms)
+        self.on_ground = any(
+            ground_probe.colliderect(obstacle) for obstacle in obstacles
+        )
 
         # 4. Prevent gravity accumulation while standing on ground
         if self.on_ground and self.vel_y > 0:
@@ -229,8 +171,18 @@ class Player:
             self.frame_index = (self.frame_index + frames_elapsed) % walk_frame_count
             self.frame_timer %= ANIMATION_FRAME_DURATION
 
-    def draw(self, surface, camera_x):
+    def draw(self, surface, camera_x, is_grabbing=False):
         x = self.rect.x - camera_x
+
+        if is_grabbing and self.grab_image is not None:
+            image = self.grab_image
+            if not self.facing_right:
+                image = pygame.transform.flip(image, True, False)
+            frame_rect = image.get_rect(
+                midbottom=(x + self.rect.width // 2, self.rect.bottom)
+            )
+            surface.blit(image, frame_rect)
+            return
 
         if self.idle_image is not None and self.on_ground and self.vel_x == 0:
             image = self.idle_image
@@ -279,6 +231,10 @@ CHARACTER_IDLE_IMAGES["Francesco"] = pygame.transform.scale(
     pygame.image.load("Assets/francesco_idle.png").convert_alpha(),
     (11 * SCALE, 15 * SCALE),
 )
+CHARACTER_GRAB_IMAGES["Francesco"] = pygame.transform.scale(
+    pygame.image.load("Assets/francesco_grab.png").convert_alpha(),
+    (11 * SCALE, 15 * SCALE),
+)
 
 SCALE = 5
 giuseppe = [
@@ -293,6 +249,10 @@ CHARACTER_IDLE_IMAGES["Giuseppe"] = pygame.transform.scale(
     pygame.image.load("Assets/giuseppe_idle.png").convert_alpha(),
     (11 * SCALE, 15 * SCALE),
 )
+CHARACTER_GRAB_IMAGES["Giuseppe"] = pygame.transform.scale(
+    pygame.image.load("Assets/guiseppe_grab.png").convert_alpha(),
+    (11 * SCALE, 15 * SCALE),
+)
 
 SCALE = 5
 alfredo = [
@@ -305,6 +265,10 @@ alfredo.append(pygame.transform.scale(pygame.image.load("Assets/alfredo_jump.png
 CHARACTERS["Alfredo"] = alfredo
 CHARACTER_IDLE_IMAGES["Alfredo"] = pygame.transform.scale(
     pygame.image.load("Assets/alfredo_idle.png").convert_alpha(),
+    (11 * SCALE, 15 * SCALE),
+)
+CHARACTER_GRAB_IMAGES["Alfredo"] = pygame.transform.scale(
+    pygame.image.load("Assets/Alfredo_grab.png").convert_alpha(),
     (11 * SCALE, 15 * SCALE),
 )
 
@@ -399,6 +363,7 @@ MAP_WIDTH = 1600
 
 player = Player(60, 450, CHARACTERS[selected_character])
 player.idle_image = CHARACTER_IDLE_IMAGES.get(selected_character)
+player.grab_image = CHARACTER_GRAB_IMAGES.get(selected_character)
 enemy = enemy1(300, 390)
 camera_x = 0
 
@@ -410,7 +375,7 @@ platform_height = 20
 
 # ---------------- MULTIPLAYER ----------------
 
-network = None
+network = NetworkClient(f"ws://{host_ip}:8765")
 network_status = "Not connected"
 
 
@@ -429,19 +394,19 @@ def main_loop(): # function for start so no need to change running variable
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Character and Customizable Map")
 
-
-    network_status = "Connected"
+    network_status = "Connecting..."
+    threading.Thread(target=connect_to_server, daemon=True).start()
 
     running = True
     drag_offset_x = 0
     drag_offset_y = 0
+    remote_positions = {}
+    grapple_target = None
+    is_held = False
 
     while running:
         elapsed_ms = clock.tick(FPS)
         mouse_x, mouse_y = pygame.mouse.get_pos()
-        mx, my = mouse_x, mouse_y
-        coords = font.render(f"{mx},{my}", True, (255, 255, 255))
-        screen.blit(coords, (10, SCREEN_HEIGHT - 25))
         world_mouse_x = mouse_x + camera_x
 
         # -------------- EVENTS --------------
@@ -460,6 +425,50 @@ def main_loop(): # function for start so no need to change running variable
                     selected_platform = None
                     player.vel_x = 0
                     player.vel_y = 0
+                    if editing:
+                        grapple_target = None
+                        network.send_position(
+                            player.rect.x,
+                            player.rect.y,
+                            selected_character,
+                            player.frame_index,
+                            player.facing_right,
+                            player.on_ground and player.vel_x == 0,
+                            None,
+                        )
+
+                if not editing and event.key == pygame.K_e:
+                    if grapple_target is not None:
+                        grapple_target = None
+                    else:
+                        current_id, current_players = network.get_players()
+                        already_held = any(
+                            data.get("grabbing") == current_id
+                            for player_id, data in current_players.items()
+                            if player_id != current_id
+                        )
+                        candidates = []
+
+                        if current_id is not None and not already_held:
+                            for other_id, (other_x, other_y) in remote_positions.items():
+                                if other_id not in current_players:
+                                    continue
+                                already_grabbed = any(
+                                    data.get("grabbing") == other_id
+                                    for player_id, data in current_players.items()
+                                    if player_id != current_id
+                                )
+                                if already_grabbed:
+                                    continue
+
+                                dx = player.rect.centerx - (other_x + 15)
+                                dy = player.rect.centery - (other_y + 20)
+                                distance_squared = dx * dx + dy * dy
+                                if distance_squared <= GRAPPLE_RANGE * GRAPPLE_RANGE:
+                                    candidates.append((distance_squared, other_id))
+
+                        if candidates:
+                            grapple_target = min(candidates)[1]
 
                 if editing and event.key == pygame.K_p:
                     platforms.append(
@@ -493,6 +502,9 @@ def main_loop(): # function for start so no need to change running variable
                         player.idle_image = CHARACTER_IDLE_IMAGES.get(
                             selected_character
                         )
+                        player.grab_image = CHARACTER_GRAB_IMAGES.get(
+                            selected_character
+                        )
 
             if editing and event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
@@ -513,19 +525,53 @@ def main_loop(): # function for start so no need to change running variable
         if not running:
             break
 
+        my_id, other_players = network.get_players()
+
         # ------------- UPDATE ------------
 
         if not editing:
+            is_held = my_id is not None and any(
+                data.get("grabbing") == my_id
+                for player_id, data in other_players.items()
+                if player_id != my_id
+            )
+
+            if grapple_target is not None:
+                target_position = remote_positions.get(grapple_target)
+                if grapple_target not in other_players or target_position is None:
+                    grapple_target = None
+                else:
+                    dx = player.rect.centerx - (target_position[0] + 15)
+                    dy = player.rect.centery - (target_position[1] + 20)
+                    if dx * dx + dy * dy > GRAPPLE_RANGE * GRAPPLE_RANGE:
+                        grapple_target = None
+
             keys = pygame.key.get_pressed()
 
-            player.handle_input(keys)
-            player.update(platforms)
+            if is_held:
+                player.vel_x = 0
+                player.vel_y = 0
+            else:
+                player.handle_input(keys)
+                player_colliders = [
+                    (
+                        pygame.Rect(round(x), round(y), 30, 40),
+                        my_id > player_id,
+                    )
+                    for player_id, (x, y) in remote_positions.items()
+                    if my_id is not None
+                ]
+                player.update(platforms, player_colliders)
             player.update_animation(elapsed_ms)
 
             network.send_position(
                 player.rect.x,
                 player.rect.y,
                 selected_character,
+                player.frame_index,
+                player.facing_right,
+                player.on_ground and player.vel_x == 0,
+                grapple_target,
             )
 
             if player.rect.top > SCREEN_HEIGHT + 200:
@@ -559,22 +605,48 @@ def main_loop(): # function for start so no need to change running variable
 
             pygame.draw.rect(screen, BROWN, screen_rect)
 
-        player.draw(screen, camera_x)
+        player.draw(screen, camera_x, grapple_target is not None)
 
         # ------------- OTHER PLAYERS -------------
 
-        my_id, other_players = network.get_players()
+        active_remote_ids = set()
 
         for player_id, data in other_players.items():
 
             if player_id == my_id:
                 continue
 
-            other_x = data["x"]
-            other_y = data["y"]
+            active_remote_ids.add(player_id)
+            target_x = data["x"]
+            target_y = data["y"]
+            if player_id not in remote_positions:
+                remote_positions[player_id] = (target_x, target_y)
+            else:
+                current_x, current_y = remote_positions[player_id]
+                smoothing = min(1.0, elapsed_ms / REMOTE_SMOOTHING_MS)
+                remote_positions[player_id] = (
+                    current_x + (target_x - current_x) * smoothing,
+                    current_y + (target_y - current_y) * smoothing,
+                )
+            smoothed_x, smoothed_y = remote_positions[player_id]
+            other_x = round(smoothed_x)
+            other_y = round(smoothed_y)
+            character_frames = CHARACTERS.get(data["color"])
+            is_idle = data.get("is_idle", True)
 
-            other_image = CHARACTER_IDLE_IMAGES.get(data["color"])
+            other_image = None
+            if data.get("grabbing") is not None:
+                other_image = CHARACTER_GRAB_IMAGES.get(data["color"])
+            if other_image is None:
+                if is_idle:
+                    other_image = CHARACTER_IDLE_IMAGES.get(data["color"])
+                elif isinstance(character_frames, list) and character_frames:
+                    frame_index = data.get("frame_index", 0) % len(character_frames)
+                    other_image = character_frames[frame_index]
+
             if other_image is not None:
+                if not data.get("facing_right", True):
+                    other_image = pygame.transform.flip(other_image, True, False)
                 image_rect = other_image.get_rect(
                     midbottom=(other_x - camera_x + 15, other_y + 40)
                 )
@@ -595,13 +667,48 @@ def main_loop(): # function for start so no need to change running variable
                     )
                 )
 
+        for holder_id, data in other_players.items():
+            target_id = data.get("grabbing")
+            if target_id is None:
+                continue
+
+            holder_position = (
+                (player.rect.x, player.rect.y)
+                if holder_id == my_id
+                else remote_positions.get(holder_id)
+            )
+            target_position = (
+                (player.rect.x, player.rect.y)
+                if target_id == my_id
+                else remote_positions.get(target_id)
+            )
+            if holder_position is None or target_position is None:
+                continue
+
+            pygame.draw.line(
+                screen,
+                (190, 45, 45),
+                (
+                    round(holder_position[0]) - camera_x + 15,
+                    round(holder_position[1]) + 20,
+                ),
+                (
+                    round(target_position[0]) - camera_x + 15,
+                    round(target_position[1]) + 20,
+                ),
+                3,
+            )
+
+        for player_id in list(remote_positions):
+            if player_id not in active_remote_ids:
+                del remote_positions[player_id]
+
         if editing:
             instructions = [
                 "EDIT MODE",
                 "Left-click and drag a platform to move it",
                 "P: add platform | Delete: remove selected platform",
                 "TAB: play mode",
-                "Code: " + encode_ip(host_ip),
             ]
             if selected_platform in platforms:
                 platforms.remove(selected_platform)
@@ -611,7 +718,10 @@ def main_loop(): # function for start so no need to change running variable
                 "PLAY MODE",
                 "A/D or Left/Right: move | Space/W/Up: jump",
                 "1/2/3: change character | TAB: edit mode",
+                "E: grapple/release a nearby player",
             ]
+            if is_held:
+                instructions.append("Grappled: you cannot move")
 
         instructions.append(f"Multiplayer: {network_status}")
 
@@ -619,41 +729,14 @@ def main_loop(): # function for start so no need to change running variable
             text_surface = font.render(line, True, BLACK)
             screen.blit(text_surface, (15, 15 + i * 28))
 
-        # custom cursor
-        pygame.draw.line(screen, (168, 101, 201), (mx - 10, my), (mx + 10, my), 1)
-        pygame.draw.line(screen, (168, 101, 201), (mx, my - 10), (mx, my + 10), 1)
-
-        # mouse coords
-        coords = font.render(f"{mx}, {my}", True, WHITE)
-        screen.blit(coords, (10, SCREEN_HEIGHT - 25))
-
         pygame.display.flip()
 
     network.close()
     pygame.quit()
 
-def connect_to_server(ip):
-    global network, network_status
-
-    try:
-        new_network = NetworkClient(f"ws://{ip}:8765")
-
-        if new_network.connect():
-            network = new_network
-            network_status = "Connected"
-            return True
-
-        new_network.close()
-        return False
-
-    except Exception:
-        return False
-
 #----------------- TKINTER MAIN GUI ------------------
 
 def main_menu_loop():
-
-    global mx, my
 
     # ---------- Window Setup ----------
 
@@ -718,114 +801,16 @@ def main_menu_loop():
 
     animate_background()
 
-    
-    # --------- GUI SETUP ---------
+    # --------- Gui Setup ---------
 
     play_image = Image.open("Assets/PlayButton.png")
-    play_image_resized = play_image.resize(
-        (100, 75),
-        Image.Resampling.LANCZOS
-    )
+    play_image_resized = play_image.resize((100, 75), Image.Resampling.LANCZOS)
     play_photo_resized = ImageTk.PhotoImage(play_image_resized)
 
-    # --------- CONNECTION HANDLING ---------
-    
-    def attempt_connection():
-
-        nonlocal connecting
-
-        if connecting:
-            return
-
-        entered_code = code_entry.get().strip()
-
-        #HOST: no code entered
-        if entered_code == "":
-            target_ip = host_ip
-
-        #JOIN: code entered
-        else:
-            try:
-                target_ip = decode_ip(entered_code)
-
-            except (ValueError, ipaddress.AddressValueError):
-                status_label.config(
-                    text="INVALID CODE",
-                    fg="red"
-                )
-                return
-
-        connecting = True
-
-        status_label.config(
-            text="Connecting...",
-            fg="blue"
-        )
-
-        def connection_thread():
-
-            global server_process
-
-            if entered_code == "":
-                try:
-                    server_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.py")
-                    server_process = subprocess.Popen([sys.executable, server_path])
-
-                    time.sleep(1)
-
-                except Exception as e:
-                    print("Could not start server:", e)
-                    window.after(0, lambda: status_label.config(text="Failed to start server", fg="red"))
-                    return
-            success = connect_to_server(target_ip)
-
-            if success:
-                window.after(0, lambda: [window.destroy(), main_loop()])
-            else:
-                def connection_failed():
-                    nonlocal connecting
-                    connecting = False
-                    status_label.config(text="CONNECTION FAILED - Try again", fg="red")
-                window.after(0, connection_failed)
-
-        threading.Thread(
-            target=connection_thread,
-            daemon=True
-        ).start()
-
-        # --------- PLAY BUTTON ---------
-
-    start_button = tk.Button(
-        window,
-        image=play_photo_resized,
-        command=attempt_connection,
-        borderwidth=0,
-        highlightthickness=0,
-        relief="flat"
-    )
-
+    start_button = tk.Button(window, image=play_photo_resized, command=lambda: [window.destroy(), main_loop()], borderwidth=0, highlightthickness=0, relief="flat")
     start_button.pack(pady=5)
 
-    code_entry = tk.Entry(
-        window,
-        width=20,
-        font=("Arial", 14)
-    )
-    code_entry.pack(pady=10)
-
-    status_label = tk.Label(
-        window,
-        text="Enter code to join or leave blank to host",
-        font=("Arial", 11),
-        fg="white",
-        bg="black"
-    )
-    status_label.pack(pady=5)
-
-    connecting = False
-
-    window.mainloop()
-
+    window.mainloop()   
 
 main_menu_loop()
 pygame.quit()
