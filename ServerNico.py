@@ -20,6 +20,7 @@ async def handle_player(websocket):
         "facing_right": True,
         "is_idle": True,
         "grabbing": None,
+        "punch_id": 0,
     }
 
     print("Player joined:", player_id)
@@ -43,6 +44,7 @@ async def handle_player(websocket):
                 players[player_id]["facing_right"] = data["facing_right"]
                 players[player_id]["is_idle"] = data["is_idle"]
                 players[player_id]["grabbing"] = data.get("grabbing")
+                players[player_id]["punch_id"] = data.get("punch_id", 0)
 
     except Exception as error:
         print("Player error:", error)
