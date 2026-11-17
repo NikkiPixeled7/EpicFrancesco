@@ -71,6 +71,7 @@ selected_character = "Francesco"
 CHARACTER_IDLE_IMAGES = {}
 CHARACTER_GRAB_IMAGES = {}
 CHARACTER_PUNCH_IMAGES = {}
+CHARACTER_RUN_PUNCH_IMAGES = {}
 
 
 
@@ -91,6 +92,7 @@ class Player:
         self.idle_image = None
         self.grab_image = None
         self.punch_image = None
+        self.run_punch_images = None
         self.punch_timer = 0
         self.punch_id = 0
         self.knockback_x = 0
@@ -191,6 +193,21 @@ class Player:
 
     def draw(self, surface, camera_x, is_grabbing=False, is_punching=False):
         x = self.rect.x - camera_x
+
+        if (
+            is_punching
+            and self.vel_x != 0
+            and self.on_ground
+            and self.run_punch_images
+        ):
+            image = self.run_punch_images[self.frame_index % len(self.run_punch_images)]
+            if not self.facing_right:
+                image = pygame.transform.flip(image, True, False)
+            frame_rect = image.get_rect(
+                midbottom=(x + self.rect.width // 2, self.rect.bottom)
+            )
+            surface.blit(image, frame_rect)
+            return
 
         if is_punching and self.punch_image is not None:
             image = self.punch_image
@@ -310,6 +327,18 @@ for character in ("Francesco", "Giuseppe", "Alfredo"):
     else:
         print(f"Punch sprite not found: {punch_path}")
 
+    run_punch_paths = [
+        f"Assets/{character.lower()}_run_punch_{i}.png" for i in range(3)
+    ]
+    if all(os.path.isfile(path) for path in run_punch_paths):
+        CHARACTER_RUN_PUNCH_IMAGES[character] = [
+            pygame.transform.scale(
+                pygame.image.load(path).convert_alpha(),
+                (11 * SCALE, 15 * SCALE),
+            )
+            for path in run_punch_paths
+        ]
+
 class enemy1:
     
     def __init__(self, x, y):
@@ -403,6 +432,7 @@ player = Player(60, 450, CHARACTERS[selected_character])
 player.idle_image = CHARACTER_IDLE_IMAGES.get(selected_character)
 player.grab_image = CHARACTER_GRAB_IMAGES.get(selected_character)
 player.punch_image = CHARACTER_PUNCH_IMAGES.get(selected_character)
+player.run_punch_images = CHARACTER_RUN_PUNCH_IMAGES.get(selected_character)
 enemy = enemy1(300, 390)
 camera_x = 0
 
@@ -548,6 +578,9 @@ def main_loop(): # function for start so no need to change running variable
                             selected_character
                         )
                         player.punch_image = CHARACTER_PUNCH_IMAGES.get(
+                            selected_character
+                        )
+                        player.run_punch_images = CHARACTER_RUN_PUNCH_IMAGES.get(
                             selected_character
                         )
 
@@ -717,7 +750,20 @@ def main_loop(): # function for start so no need to change running variable
 
             other_image = None
             if remote_punch_until.get(player_id, 0) > pygame.time.get_ticks():
-                other_image = CHARACTER_PUNCH_IMAGES.get(data["color"])
+                frame_index = data.get("frame_index", 0)
+                is_running = (
+                    not is_idle
+                    and isinstance(character_frames, list)
+                    and frame_index < len(character_frames) - 1
+                )
+                if is_running:
+                    run_punch_frames = CHARACTER_RUN_PUNCH_IMAGES.get(data["color"])
+                    if run_punch_frames:
+                        other_image = run_punch_frames[
+                            frame_index % len(run_punch_frames)
+                        ]
+                if other_image is None:
+                    other_image = CHARACTER_PUNCH_IMAGES.get(data["color"])
             if data.get("grabbing") is not None:
                 if other_image is None:
                     other_image = CHARACTER_GRAB_IMAGES.get(data["color"])
