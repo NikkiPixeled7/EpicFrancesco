@@ -93,7 +93,8 @@ class NetworkClient:
                 break
 
     def send_position(
-        self, x, y, color, frame_index, facing_right, is_idle, grabbing=None
+        self, x, y, color, frame_index, facing_right, is_idle, grabbing=None,
+        punch_id=0
     ):
 
         data = {
@@ -104,6 +105,7 @@ class NetworkClient:
             "facing_right": facing_right,
             "is_idle": is_idle,
             "grabbing": grabbing,
+            "punch_id": punch_id,
         }
 
         try:
