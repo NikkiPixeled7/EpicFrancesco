@@ -1,6 +1,7 @@
 import pygame
 import tkinter as tk
 import threading
+import os
 from tkinter import ttk
 from PIL import Image, ImageTk
 from network import NetworkClient
@@ -48,6 +49,12 @@ GRAVITY = 0.7
 JUMP_STRENGTH = -13
 ANIMATION_FRAME_DURATION = 100
 GRAPPLE_RANGE = 60
+PUNCH_RANGE = 60
+PUNCH_VERTICAL_RANGE = 40
+PUNCH_ANIMATION_MS = 250
+PUNCH_KNOCKBACK_SPEED = 10
+PUNCH_KNOCKBACK_LIFT = -6
+PUNCH_KNOCKBACK_DURATION_MS = 250
 
 # -------------- CHARACTER OPTIONS -----------------
 # -------------------- CHARACTER OPTIONS --------------------
@@ -63,6 +70,7 @@ selected_character = "Blue"
 selected_character = "Francesco"
 CHARACTER_IDLE_IMAGES = {}
 CHARACTER_GRAB_IMAGES = {}
+CHARACTER_PUNCH_IMAGES = {}
 
 
 
@@ -82,6 +90,16 @@ class Player:
         self.spawn_y = 250
         self.idle_image = None
         self.grab_image = None
+        self.punch_image = None
+        self.punch_timer = 0
+        self.punch_id = 0
+        self.knockback_x = 0
+        self.knockback_timer = 0
+
+    def apply_knockback(self, direction):
+        self.knockback_x = direction * PUNCH_KNOCKBACK_SPEED
+        self.knockback_timer = PUNCH_KNOCKBACK_DURATION_MS
+        self.vel_y = PUNCH_KNOCKBACK_LIFT
 
     def handle_input(self, keys):
         self.vel_x = 0
@@ -171,8 +189,18 @@ class Player:
             self.frame_index = (self.frame_index + frames_elapsed) % walk_frame_count
             self.frame_timer %= ANIMATION_FRAME_DURATION
 
-    def draw(self, surface, camera_x, is_grabbing=False):
+    def draw(self, surface, camera_x, is_grabbing=False, is_punching=False):
         x = self.rect.x - camera_x
+
+        if is_punching and self.punch_image is not None:
+            image = self.punch_image
+            if not self.facing_right:
+                image = pygame.transform.flip(image, True, False)
+            frame_rect = image.get_rect(
+                midbottom=(x + self.rect.width // 2, self.rect.bottom)
+            )
+            surface.blit(image, frame_rect)
+            return
 
         if is_grabbing and self.grab_image is not None:
             image = self.grab_image
@@ -272,6 +300,16 @@ CHARACTER_GRAB_IMAGES["Alfredo"] = pygame.transform.scale(
     (11 * SCALE, 15 * SCALE),
 )
 
+for character in ("Francesco", "Giuseppe", "Alfredo"):
+    punch_path = f"Assets/{character.lower()}_punchR.png"
+    if os.path.isfile(punch_path):
+        CHARACTER_PUNCH_IMAGES[character] = pygame.transform.scale(
+            pygame.image.load(punch_path).convert_alpha(),
+            (11 * SCALE, 15 * SCALE),
+        )
+    else:
+        print(f"Punch sprite not found: {punch_path}")
+
 class enemy1:
     
     def __init__(self, x, y):
@@ -364,6 +402,7 @@ MAP_WIDTH = 1600
 player = Player(60, 450, CHARACTERS[selected_character])
 player.idle_image = CHARACTER_IDLE_IMAGES.get(selected_character)
 player.grab_image = CHARACTER_GRAB_IMAGES.get(selected_character)
+player.punch_image = CHARACTER_PUNCH_IMAGES.get(selected_character)
 enemy = enemy1(300, 390)
 camera_x = 0
 
@@ -403,6 +442,8 @@ def main_loop(): # function for start so no need to change running variable
     remote_positions = {}
     grapple_target = None
     is_held = False
+    remote_punch_ids = {}
+    remote_punch_until = {}
 
     while running:
         elapsed_ms = clock.tick(FPS)
@@ -435,6 +476,7 @@ def main_loop(): # function for start so no need to change running variable
                             player.facing_right,
                             player.on_ground and player.vel_x == 0,
                             None,
+                            player.punch_id,
                         )
 
                 if not editing and event.key == pygame.K_e:
@@ -505,9 +547,12 @@ def main_loop(): # function for start so no need to change running variable
                         player.grab_image = CHARACTER_GRAB_IMAGES.get(
                             selected_character
                         )
+                        player.punch_image = CHARACTER_PUNCH_IMAGES.get(
+                            selected_character
+                        )
 
-            if editing and event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if editing and event.button == 1:
                     selected_platform = None
 
                     for platform in reversed(platforms):
@@ -517,6 +562,9 @@ def main_loop(): # function for start so no need to change running variable
                             drag_offset_x = world_mouse_x - platform.x
                             drag_offset_y = mouse_y - platform.y
                             break
+                elif not editing and event.button == 3:
+                    player.punch_id += 1
+                    player.punch_timer = PUNCH_ANIMATION_MS
 
             if editing and event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
@@ -525,6 +573,7 @@ def main_loop(): # function for start so no need to change running variable
         if not running:
             break
 
+        player.punch_timer = max(0, player.punch_timer - elapsed_ms)
         my_id, other_players = network.get_players()
 
         # ------------- UPDATE ------------
@@ -548,11 +597,17 @@ def main_loop(): # function for start so no need to change running variable
 
             keys = pygame.key.get_pressed()
 
-            if is_held:
+            if is_held and player.knockback_timer <= 0:
                 player.vel_x = 0
                 player.vel_y = 0
             else:
-                player.handle_input(keys)
+                if player.knockback_timer > 0:
+                    player.vel_x = player.knockback_x
+                    player.knockback_timer = max(
+                        0, player.knockback_timer - elapsed_ms
+                    )
+                else:
+                    player.handle_input(keys)
                 player_colliders = [
                     (
                         pygame.Rect(round(x), round(y), 30, 40),
@@ -572,6 +627,7 @@ def main_loop(): # function for start so no need to change running variable
                 player.facing_right,
                 player.on_ground and player.vel_x == 0,
                 grapple_target,
+                player.punch_id,
             )
 
             if player.rect.top > SCREEN_HEIGHT + 200:
@@ -605,7 +661,12 @@ def main_loop(): # function for start so no need to change running variable
 
             pygame.draw.rect(screen, BROWN, screen_rect)
 
-        player.draw(screen, camera_x, grapple_target is not None)
+        player.draw(
+            screen,
+            camera_x,
+            grapple_target is not None,
+            player.punch_timer > 0,
+        )
 
         # ------------- OTHER PLAYERS -------------
 
@@ -631,12 +692,35 @@ def main_loop(): # function for start so no need to change running variable
             smoothed_x, smoothed_y = remote_positions[player_id]
             other_x = round(smoothed_x)
             other_y = round(smoothed_y)
+            punch_id = data.get("punch_id", 0)
+            previous_punch_id = remote_punch_ids.get(player_id)
+            if previous_punch_id is None:
+                remote_punch_ids[player_id] = punch_id
+            elif punch_id != previous_punch_id:
+                remote_punch_ids[player_id] = punch_id
+                remote_punch_until[player_id] = (
+                    pygame.time.get_ticks() + PUNCH_ANIMATION_MS
+                )
+                punch_direction = 1 if data.get("facing_right", True) else -1
+                puncher_rect = pygame.Rect(data["x"], data["y"], 30, 40)
+                punch_hitbox = pygame.Rect(
+                    puncher_rect.right if punch_direction > 0 else puncher_rect.left - PUNCH_RANGE,
+                    puncher_rect.y - PUNCH_VERTICAL_RANGE,
+                    PUNCH_RANGE,
+                    puncher_rect.height + PUNCH_VERTICAL_RANGE * 2,
+                )
+                if punch_hitbox.colliderect(player.rect):
+                    player.apply_knockback(punch_direction)
+
             character_frames = CHARACTERS.get(data["color"])
             is_idle = data.get("is_idle", True)
 
             other_image = None
+            if remote_punch_until.get(player_id, 0) > pygame.time.get_ticks():
+                other_image = CHARACTER_PUNCH_IMAGES.get(data["color"])
             if data.get("grabbing") is not None:
-                other_image = CHARACTER_GRAB_IMAGES.get(data["color"])
+                if other_image is None:
+                    other_image = CHARACTER_GRAB_IMAGES.get(data["color"])
             if other_image is None:
                 if is_idle:
                     other_image = CHARACTER_IDLE_IMAGES.get(data["color"])
@@ -667,41 +751,11 @@ def main_loop(): # function for start so no need to change running variable
                     )
                 )
 
-        for holder_id, data in other_players.items():
-            target_id = data.get("grabbing")
-            if target_id is None:
-                continue
-
-            holder_position = (
-                (player.rect.x, player.rect.y)
-                if holder_id == my_id
-                else remote_positions.get(holder_id)
-            )
-            target_position = (
-                (player.rect.x, player.rect.y)
-                if target_id == my_id
-                else remote_positions.get(target_id)
-            )
-            if holder_position is None or target_position is None:
-                continue
-
-            pygame.draw.line(
-                screen,
-                (190, 45, 45),
-                (
-                    round(holder_position[0]) - camera_x + 15,
-                    round(holder_position[1]) + 20,
-                ),
-                (
-                    round(target_position[0]) - camera_x + 15,
-                    round(target_position[1]) + 20,
-                ),
-                3,
-            )
-
         for player_id in list(remote_positions):
             if player_id not in active_remote_ids:
                 del remote_positions[player_id]
+                remote_punch_ids.pop(player_id, None)
+                remote_punch_until.pop(player_id, None)
 
         if editing:
             instructions = [
@@ -719,6 +773,7 @@ def main_loop(): # function for start so no need to change running variable
                 "A/D or Left/Right: move | Space/W/Up: jump",
                 "1/2/3: change character | TAB: edit mode",
                 "E: grapple/release a nearby player",
+                "Right-click: punch and knock back players in front of you",
             ]
             if is_held:
                 instructions.append("Grappled: you cannot move")
