@@ -17,12 +17,20 @@ class NetworkClient:
         self.players = {}
 
         self.lock = threading.Lock()
+        self.connection_lock = threading.Lock()
+        self.stop_event = threading.Event()
         self.send_queue = queue.Queue(maxsize=1)
 
     def connect(self):
 
         try:
-            self.websocket = connect(self.address)
+            websocket = connect(self.address)
+
+            with self.connection_lock:
+                if self.stop_event.is_set():
+                    websocket.close()
+                    return False
+                self.websocket = websocket
 
             print("Connected to server!")
 
@@ -46,7 +54,7 @@ class NetworkClient:
     def receive_data(self):
 
         try:
-            while True:
+            while not self.stop_event.is_set():
 
                 message = self.websocket.recv()
                 data = json.loads(message)
@@ -61,11 +69,12 @@ class NetworkClient:
                         self.players = data["players"]
 
         except Exception as error:
-            print("Connection lost:", error)
+            if not self.stop_event.is_set():
+                print("Connection lost:", error)
         
     def send_data_thread(self):
 
-        while True:
+        while not self.stop_event.is_set():
 
             try:
 
@@ -79,15 +88,24 @@ class NetworkClient:
 
             except Exception as error:
 
-                print("Send error:", error)
+                if not self.stop_event.is_set():
+                    print("Send error:", error)
                 break
 
-    def send_position(self, x, y, color):
+    def send_position(
+        self, x, y, color, frame_index, facing_right, is_idle, grabbing=None,
+        punch_id=0
+    ):
 
         data = {
             "x": x,
             "y": y,
-            "color": color
+            "color": color,
+            "frame_index": frame_index,
+            "facing_right": facing_right,
+            "is_idle": is_idle,
+            "grabbing": grabbing,
+            "punch_id": punch_id,
         }
 
         try:
@@ -110,5 +128,10 @@ class NetworkClient:
 
     def close(self):
 
-        if self.websocket:
-            self.websocket.close()
+        self.stop_event.set()
+
+        with self.connection_lock:
+            websocket = self.websocket
+
+        if websocket:
+            websocket.close()
