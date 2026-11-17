@@ -62,6 +62,9 @@ def decode_ip(code):
 
     return str(ipaddress.IPv4Address(ip_number))
 
+def character_menu():
+    pass # close main menu and open character menu
+
 pygame.init()
 
 def center_window(window, width, height):
@@ -692,7 +695,8 @@ def main_menu_loop():
         background_image = Image.open(background_images[current_background])
         background_image_resized = background_image.resize((1000, 600), Image.Resampling.LANCZOS)
         background_photo = ImageTk.PhotoImage(background_image_resized)
-        background_label.config(image=background_photo)
+        # background_label.config(image=background_photo)
+        canvas.itemconfig(background_item, image=background_photo)
 
         if current_background == 4 or current_background == 12:
             delay = long_intervals
@@ -713,8 +717,13 @@ def main_menu_loop():
     spacing_frame = tk.Frame(window, height=170)
     spacing_frame.pack(side="top")
 
-    background_label = tk.Label(window)
-    background_label.place(x=0, y=0, relwidth=1, relheight=1)
+    # background_label = tk.Label(window)
+    # background_label.place(x=0, y=0, relwidth=1, relheight=1)
+
+    canvas = tk.Canvas(window, width=1000, height=600, highlightthickness=0, borderwidth=0)
+    canvas.place(x=0, y=0, relheight=1, relwidth=1)
+
+    background_item = canvas.create_image(0, 0, anchor="nw")
 
     animate_background()
 
@@ -722,10 +731,7 @@ def main_menu_loop():
     # --------- GUI SETUP ---------
 
     play_image = Image.open("Assets/PlayButton.png")
-    play_image_resized = play_image.resize(
-        (100, 75),
-        Image.Resampling.LANCZOS
-    )
+    play_image_resized = play_image.resize((100, 75), Image.Resampling.LANCZOS)
     play_photo_resized = ImageTk.PhotoImage(play_image_resized)
 
     # --------- CONNECTION HANDLING ---------
@@ -795,37 +801,74 @@ def main_menu_loop():
 
         # --------- PLAY BUTTON ---------
 
-    start_button = tk.Button(
-        window,
-        image=play_photo_resized,
-        command=attempt_connection,
-        borderwidth=0,
-        highlightthickness=0,
-        relief="flat"
-    )
+    start_button = tk.Button(window, cursor="hand2",image=play_photo_resized, command=attempt_connection, borderwidth=0, highlightthickness=0, relief="flat")
 
     start_button.pack(pady=5)
 
-    code_entry = tk.Entry(
-        window,
-        width=20,
-        font=("Arial", 14)
-    )
+    code_entry = tk.Entry(window, width=20, font=("Arial", 14))
     code_entry.pack(pady=10)
 
-    status_label = tk.Label(
-        window,
-        text="Enter code to join or leave blank to host",
-        font=("Arial", 11),
-        fg="white",
-        bg="black"
-    )
+    status_label = tk.Label(window, text="Enter code to join or leave blank to host", font=("Arial", 11), fg="white", bg="black")
     status_label.pack(pady=5)
+
+    # ---------- CHARACTER SELECTION BUTTON ----------
+    
+    char_image = Image.open("Assets/CharacterSelection.png").convert("RGBA")
+
+    character_select_image_resized = char_image.resize((100, 75), Image.Resampling.LANCZOS)
+
+    character_select_photo_resized = ImageTk.PhotoImage(character_select_image_resized)
+
+    character_selection_button = canvas.create_image(
+        980,
+        580,
+        image=character_select_photo_resized,
+        anchor="se",
+        tags="character_select"
+    )
+
+    # Make the image clickable
+    canvas.tag_bind(
+        "character_select",
+        "<Button-1>",
+        lambda event: character_menu()
+    )
+
+    # Change cursor when hovering over the image
+    canvas.tag_bind(
+        "character_select",
+        "<Enter>",
+        lambda event: canvas.config(cursor="hand2")
+    )
+
+    canvas.tag_bind(
+        "character_select",
+        "<Leave>",
+        lambda event: canvas.config(cursor="")
+    )
 
     connecting = False
 
     window.mainloop()
 
+def character_menu():
+
+    # ---------- Window Setup ----------
+
+    window = tk.Tk()
+    window.title("Epic Francesco - Main Menu")
+    center_window(window, 1000, 600)
+
+    spacing_frame = tk.Frame(window, height=170)
+    spacing_frame.pack(side="top")
+
+    background_label = tk.Label(window)
+    background_label.place(x=0, y=0, relwidth=1, relheight=1)
+
+    # --------- GUI SETUP ---------
+
+
+    window.mainloop()
 
 main_menu_loop()
 pygame.quit()
