@@ -864,6 +864,7 @@ def character_menu(previous_window, background_after_id=None):
     center_window(window, 1000, 600)
 
     selected_character_from_menu = "Francesco"
+    button_photos = []
 
     # csm = character selection menu
     background_images_csm = [
@@ -878,6 +879,7 @@ def character_menu(previous_window, background_after_id=None):
         used_image_resized = used_image.resize((size_x, size_y), Image.Resampling.LANCZOS)
     
         used_image_photo_resized = ImageTk.PhotoImage(used_image_resized)
+        button_photos.append(used_image_photo_resized)
     
         used_image_button = canvas.create_image(
             pos_x,
@@ -929,13 +931,10 @@ def character_menu(previous_window, background_after_id=None):
     spacing_frame = tk.Frame(window, height=170)
     spacing_frame.pack(side="top")
 
-    background_label = tk.Label(window)
-    background_label.place(x=0, y=0, relwidth=1, relheight=1)
-
     # parameters are: file_name, size_x, size_y, pos_x, pos_y
-    transparent_button("right_arrow_image", 15, 15, 250, 250)
+    transparent_button("right_arrow_image", 75, 50, 250, 250)
 
-    transparent_button("left_arrow_image", 15, 15, 200, 250)
+    transparent_button("left_arrow_image", 75, 50, 200, 250)
 
     # mid_left_arrow = tk.Button(window, image=left_arrow_photo)
     # mid_left_arrow.pack(pady=65, padx=25)
