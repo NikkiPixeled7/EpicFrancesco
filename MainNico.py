@@ -33,6 +33,11 @@ SCREEN_HEIGHT = 600
 FPS = 60
 REMOTE_SMOOTHING_MS = 100
 
+PUNCH_SOUND = pygame.mixer.Sound("Assets/punch_sfx.wav")
+GRAB_SOUND = pygame.mixer.Sound("Assets/grab_sfx.wav")
+PUNCH_SOUND.set_volume(0.5)
+GRAB_SOUND.set_volume(0.5)
+
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Character and Customizable Map")
 clock = pygame.time.Clock()
@@ -55,6 +60,9 @@ PUNCH_ANIMATION_MS = 250
 PUNCH_KNOCKBACK_SPEED = 10
 PUNCH_KNOCKBACK_LIFT = -6
 PUNCH_KNOCKBACK_DURATION_MS = 250
+PUNCH_KNOCKBACK_HIT_THRESHOLD = 3
+PUNCH_KNOCKBACK_BOOST = 2.5
+FLY_SPIN_DEGREES_PER_SECOND = 540
 
 # -------------- CHARACTER OPTIONS -----------------
 # -------------------- CHARACTER OPTIONS --------------------
@@ -72,6 +80,7 @@ CHARACTER_IDLE_IMAGES = {}
 CHARACTER_GRAB_IMAGES = {}
 CHARACTER_PUNCH_IMAGES = {}
 CHARACTER_RUN_PUNCH_IMAGES = {}
+CHARACTER_FLY_IMAGES = {}
 
 
 
@@ -97,9 +106,20 @@ class Player:
         self.punch_id = 0
         self.knockback_x = 0
         self.knockback_timer = 0
+        self.hit_count = 0
+        self.is_flying = False
+        self.fly_angle = 0
+        self.fly_image = None
 
     def apply_knockback(self, direction):
-        self.knockback_x = direction * PUNCH_KNOCKBACK_SPEED
+        self.hit_count += 1
+        knockback_speed = PUNCH_KNOCKBACK_SPEED
+        if self.hit_count >= PUNCH_KNOCKBACK_HIT_THRESHOLD:
+            knockback_speed *= PUNCH_KNOCKBACK_BOOST
+            self.is_flying = True
+            self.fly_angle = 0
+
+        self.knockback_x = direction * knockback_speed
         self.knockback_timer = PUNCH_KNOCKBACK_DURATION_MS
         self.vel_y = PUNCH_KNOCKBACK_LIFT
 
@@ -172,8 +192,18 @@ class Player:
         # 4. Prevent gravity accumulation while standing on ground
         if self.on_ground and self.vel_y > 0:
             self.vel_y = 0
+        if self.on_ground:
+            self.is_flying = False
+            self.fly_angle = 0
 
     def update_animation(self, elapsed_ms):
+        if self.is_flying:
+            self.fly_angle = (
+                self.fly_angle
+                + FLY_SPIN_DEGREES_PER_SECOND * elapsed_ms / 1000
+            ) % 360
+            return
+
         if not isinstance(self.chosenCharacter, list) or not self.chosenCharacter:
             return
 
@@ -193,6 +223,14 @@ class Player:
 
     def draw(self, surface, camera_x, is_grabbing=False, is_punching=False):
         x = self.rect.x - camera_x
+
+        if self.is_flying and self.fly_image is not None:
+            image = pygame.transform.rotate(self.fly_image, self.fly_angle)
+            frame_rect = image.get_rect(
+                midbottom=(x + self.rect.width // 2, self.rect.bottom)
+            )
+            surface.blit(image, frame_rect)
+            return
 
         if (
             is_punching
@@ -327,6 +365,21 @@ for character in ("Francesco", "Giuseppe", "Alfredo"):
     else:
         print(f"Punch sprite not found: {punch_path}")
 
+    fly_filename = f"Assets/{character.lower()}_fly.png"
+    fall_filename = f"Assets/{character.lower()}_fall.png"
+    knockout_filename = f"Assets/{character.lower()}_knockout.png"
+
+    if character == "Giuseppe":
+        fall_filename = "Assets/guiseppe_fall.png"
+
+    for fly_path in (fly_filename, fall_filename, knockout_filename):
+        if os.path.isfile(fly_path):
+            CHARACTER_FLY_IMAGES[character] = pygame.transform.scale(
+                pygame.image.load(fly_path).convert_alpha(),
+                (11 * SCALE, 15 * SCALE),
+            )
+            break
+
     run_punch_paths = [
         f"Assets/{character.lower()}_run_punch_{i}.png" for i in range(3)
     ]
@@ -433,6 +486,7 @@ player.idle_image = CHARACTER_IDLE_IMAGES.get(selected_character)
 player.grab_image = CHARACTER_GRAB_IMAGES.get(selected_character)
 player.punch_image = CHARACTER_PUNCH_IMAGES.get(selected_character)
 player.run_punch_images = CHARACTER_RUN_PUNCH_IMAGES.get(selected_character)
+player.fly_image = CHARACTER_FLY_IMAGES.get(selected_character)
 enemy = enemy1(300, 390)
 camera_x = 0
 
@@ -474,6 +528,7 @@ def main_loop(): # function for start so no need to change running variable
     is_held = False
     remote_punch_ids = {}
     remote_punch_until = {}
+    remote_fly_angles = {}
 
     while running:
         elapsed_ms = clock.tick(FPS)
@@ -507,6 +562,7 @@ def main_loop(): # function for start so no need to change running variable
                             player.on_ground and player.vel_x == 0,
                             None,
                             player.punch_id,
+                            player.is_flying,
                         )
 
                 if not editing and event.key == pygame.K_e:
@@ -541,6 +597,7 @@ def main_loop(): # function for start so no need to change running variable
 
                         if candidates:
                             grapple_target = min(candidates)[1]
+                            GRAB_SOUND.play()
 
                 if editing and event.key == pygame.K_p:
                     platforms.append(
@@ -583,6 +640,7 @@ def main_loop(): # function for start so no need to change running variable
                         player.run_punch_images = CHARACTER_RUN_PUNCH_IMAGES.get(
                             selected_character
                         )
+                        player.fly_image = CHARACTER_FLY_IMAGES.get(selected_character)
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if editing and event.button == 1:
@@ -598,6 +656,7 @@ def main_loop(): # function for start so no need to change running variable
                 elif not editing and event.button == 3:
                     player.punch_id += 1
                     player.punch_timer = PUNCH_ANIMATION_MS
+                    PUNCH_SOUND.play()
 
             if editing and event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
@@ -661,12 +720,14 @@ def main_loop(): # function for start so no need to change running variable
                 player.on_ground and player.vel_x == 0,
                 grapple_target,
                 player.punch_id,
+                player.is_flying,
             )
 
             if player.rect.top > SCREEN_HEIGHT + 200:
                 player.rect.topleft = (60, 450)
                 player.vel_x = 0
                 player.vel_y = 0
+                player.hit_count = 0
 
             camera_x = player.rect.centerx - SCREEN_WIDTH // 2
 
@@ -734,6 +795,7 @@ def main_loop(): # function for start so no need to change running variable
                 remote_punch_until[player_id] = (
                     pygame.time.get_ticks() + PUNCH_ANIMATION_MS
                 )
+                PUNCH_SOUND.play()
                 punch_direction = 1 if data.get("facing_right", True) else -1
                 puncher_rect = pygame.Rect(data["x"], data["y"], 30, 40)
                 punch_hitbox = pygame.Rect(
@@ -742,14 +804,29 @@ def main_loop(): # function for start so no need to change running variable
                     PUNCH_RANGE,
                     puncher_rect.height + PUNCH_VERTICAL_RANGE * 2,
                 )
-                if punch_hitbox.colliderect(player.rect):
+                if (
+                    punch_hitbox.colliderect(player.rect)
+                    and not is_held
+                    and grapple_target is None
+                ):
                     player.apply_knockback(punch_direction)
 
             character_frames = CHARACTERS.get(data["color"])
             is_idle = data.get("is_idle", True)
+            is_flying = data.get("is_flying", False)
 
             other_image = None
-            if remote_punch_until.get(player_id, 0) > pygame.time.get_ticks():
+            if is_flying:
+                other_image = CHARACTER_FLY_IMAGES.get(data["color"])
+                fly_angle = remote_fly_angles.get(player_id, 0)
+                fly_angle = (
+                    fly_angle
+                    + FLY_SPIN_DEGREES_PER_SECOND * elapsed_ms / 1000
+                ) % 360
+                remote_fly_angles[player_id] = fly_angle
+                if other_image is not None:
+                    other_image = pygame.transform.rotate(other_image, fly_angle)
+            elif remote_punch_until.get(player_id, 0) > pygame.time.get_ticks():
                 frame_index = data.get("frame_index", 0)
                 is_running = (
                     not is_idle
@@ -802,6 +879,7 @@ def main_loop(): # function for start so no need to change running variable
                 del remote_positions[player_id]
                 remote_punch_ids.pop(player_id, None)
                 remote_punch_until.pop(player_id, None)
+                remote_fly_angles.pop(player_id, None)
 
         if editing:
             instructions = [
