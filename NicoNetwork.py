@@ -94,7 +94,7 @@ class NetworkClient:
 
     def send_position(
         self, x, y, color, frame_index, facing_right, is_idle, grabbing=None,
-        punch_id=0
+        punch_id=0, is_flying=False, is_knocked_out=False
     ):
 
         data = {
@@ -106,6 +106,8 @@ class NetworkClient:
             "is_idle": is_idle,
             "grabbing": grabbing,
             "punch_id": punch_id,
+            "is_flying": is_flying,
+            "is_knocked_out": is_knocked_out,
         }
 
         try:
