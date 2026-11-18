@@ -21,6 +21,8 @@ async def handle_player(websocket):
         "is_idle": True,
         "grabbing": None,
         "punch_id": 0,
+        "is_flying": False,
+        "is_knocked_out": False,
     }
 
     print("Player joined:", player_id)
@@ -45,6 +47,10 @@ async def handle_player(websocket):
                 players[player_id]["is_idle"] = data["is_idle"]
                 players[player_id]["grabbing"] = data.get("grabbing")
                 players[player_id]["punch_id"] = data.get("punch_id", 0)
+                players[player_id]["is_flying"] = data.get("is_flying", False)
+                players[player_id]["is_knocked_out"] = data.get(
+                    "is_knocked_out", False
+                )
 
     except Exception as error:
         print("Player error:", error)
